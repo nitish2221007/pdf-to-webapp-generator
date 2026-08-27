@@ -2,19 +2,20 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>PDF to True HTML+CSS Converter (100% Offline)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+  <title>PDF to Pure HTML+CSS Book Studio (100% Offline)</title>
   <!-- Google Fonts for precision typography -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&family=Inter:wght@400;500;600;700;800&family=Marck+Script&family=Montserrat:ital,wght@0,400;0,600;1,400&family=URW+Bookman:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
   <script src="pdf.min.js"></script>
+  
   <style>
     :root {
-      --bg-dark: #090d16;
-      --bg-surface: #111827;
-      --bg-card: #1f293d;
-      --border-color: #2e3d5b;
+      --bg-app: #0f172a;
+      --bg-surface: #1e293b;
+      --bg-card: #334155;
+      --border-color: #334155;
       --text-main: #f8fafc;
       --text-muted: #94a3b8;
       --accent-cyan: #38bdf8;
@@ -22,44 +23,68 @@
       --accent-green: #10b981;
       --accent-gradient: linear-gradient(135deg, #ec4899, #8b5cf6, #3b82f6);
       --green-gradient: linear-gradient(135deg, #059669, #10b981, #34d399);
+      
+      /* Book Paper Themes */
+      --book-bg: #ffffff;
+      --book-text: #111827;
+      --book-shadow: 0 15px 35px rgba(0,0,0,0.35), 0 3px 10px rgba(0,0,0,0.15);
+    }
+
+    [data-theme="light"] {
+      --bg-app: #e2e8f0;
+      --bg-surface: #ffffff;
+      --text-main: #0f172a;
+      --border-color: #cbd5e1;
+    }
+
+    [data-theme="sepia"] {
+      --bg-app: #ece0ca;
+      --bg-surface: #f7ede2;
+      --text-main: #453216;
+      --border-color: #d7c4aa;
+      --book-bg: #fdfbf7;
+      --book-text: #453216;
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background-color: var(--bg-dark);
+      background-color: var(--bg-app);
       color: var(--text-main);
       min-height: 100vh;
       display: flex;
       flex-direction: column;
+      overflow-x: hidden;
+      transition: background-color 0.2s ease;
     }
 
-    /* Header */
+    /* App Header */
     .app-header {
       background: var(--bg-surface);
       border-bottom: 1px solid var(--border-color);
-      padding: 0.75rem 1rem;
+      padding: 0.65rem 1rem;
       display: flex;
       align-items: center;
       justify-content: space-between;
       position: sticky;
       top: 0;
       z-index: 100;
+      backdrop-filter: blur(10px);
     }
 
     .brand-title {
-      font-size: 0.95rem;
+      font-size: 0.92rem;
       font-weight: 800;
       display: flex;
       align-items: center;
       gap: 0.4rem;
-      color: #fff;
+      color: var(--text-main);
     }
 
     .tag-pure-html {
-      background: rgba(236, 72, 153, 0.2);
+      background: rgba(236, 72, 153, 0.15);
       color: #f472b6;
-      border: 1px solid rgba(236, 72, 153, 0.4);
+      border: 1px solid rgba(236, 72, 153, 0.35);
       padding: 0.15rem 0.45rem;
       border-radius: 6px;
       font-size: 0.65rem;
@@ -160,18 +185,18 @@
       transition: width 0.2s ease;
     }
 
-    /* Reader View */
+    /* Floating Reader Toolbar */
     .reader-toolbar {
       background: var(--bg-surface);
       border-bottom: 1px solid var(--border-color);
-      padding: 0.5rem 1rem;
+      padding: 0.5rem 0.75rem;
       display: flex;
       align-items: center;
       justify-content: space-between;
       position: sticky;
-      top: 50px;
+      top: 45px;
       z-index: 90;
-      gap: 0.5rem;
+      gap: 0.4rem;
       flex-wrap: wrap;
     }
 
@@ -187,7 +212,10 @@
       display: inline-flex;
       align-items: center;
       gap: 0.3rem;
+      outline: none;
+      transition: transform 0.1s;
     }
+    .btn-action-mobile:active { transform: scale(0.96); }
 
     .btn-save-green {
       background: var(--green-gradient);
@@ -196,25 +224,38 @@
       box-shadow: 0 2px 10px rgba(16,185,129,0.3);
     }
 
+    /* Scroll Stream Container */
     .reader-scroll-container {
       flex: 1;
-      padding: 1.5rem 0.5rem 5rem;
+      padding: 1rem 0.5rem 5rem;
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 24px;
+      gap: 20px;
       overflow-y: auto;
-      background: #1e293b;
+      width: 100%;
+    }
+
+    /* Responsive Scale Wrapper (Prevents Cut-off on Mobile Screens) */
+    .page-scale-box {
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      margin: 0 auto;
+      transition: width 0.2s ease, height 0.2s ease;
     }
 
     /* Pure HTML Page Card */
     .pure-html-page {
       position: relative;
-      background-color: #ffffff;
-      box-shadow: 0 15px 35px rgba(0,0,0,0.3);
-      border-radius: 3px;
+      background-color: var(--book-bg);
+      color: var(--book-text);
+      box-shadow: var(--book-shadow);
+      border-radius: 4px;
       overflow: hidden;
       user-select: text;
+      -webkit-user-select: text;
+      transform-origin: top center;
     }
 
     .page-number-tag {
@@ -223,8 +264,11 @@
       right: 10px;
       font-size: 0.65rem;
       color: #94a3b8;
+      font-family: sans-serif;
       font-weight: 700;
       z-index: 20;
+      pointer-events: none;
+      opacity: 0.7;
     }
 
     .text-line-div {
@@ -235,11 +279,12 @@
       line-height: 1.15;
     }
 
-    /* Code Modal */
+    /* Source Code Modal */
     .modal-overlay {
       position: fixed;
       top: 0; left: 0; width: 100vw; height: 100vh;
-      background: rgba(0,0,0,0.8);
+      background: rgba(0,0,0,0.85);
+      backdrop-filter: blur(4px);
       z-index: 200;
       display: none;
       align-items: center;
@@ -263,7 +308,7 @@
       padding: 1rem;
       background: #060911;
       color: #38bdf8;
-      font-family: monospace;
+      font-family: 'Consolas', monospace;
       font-size: 0.75rem;
       overflow: auto;
       flex: 1;
@@ -277,11 +322,12 @@
   <header class="app-header">
     <div class="brand-title">
       <span>📚 PDF to HTML Studio</span>
-      <span class="tag-pure-html">100% PURE HTML & CSS</span>
+      <span class="tag-pure-html">PURE HTML & CSS</span>
     </div>
-    <button class="btn-action-mobile" id="btn-back-home" style="display: none;">
-      ➕ New PDF
-    </button>
+    <div style="display: flex; gap: 0.4rem; align-items: center;">
+      <button class="btn-action-mobile" id="btn-theme-toggle" title="Toggle Theme">🌓</button>
+      <button class="btn-action-mobile" id="btn-back-home" style="display: none;">➕ New</button>
+    </div>
   </header>
 
   <!-- VIEW 1: Offline PDF Picker -->
@@ -290,7 +336,7 @@
       <div>
         <h1 class="hero-heading">Pure HTML & CSS Book Converter</h1>
         <p class="hero-sub">
-          Yeh app PDF ke har word ko <b>Real HTML Text Divs, Exact CSS Fonts aur Hex Colors</b> me convert karti hai — koi poori page ki image nahi banti!
+          Auto-Responsive Layout with zero cut-off, rich Google Fonts, and 100% on-device offline extraction!
         </p>
       </div>
 
@@ -299,7 +345,7 @@
         <div class="upload-icon">📖</div>
         <div>
           <h3 style="font-size: 1.05rem; font-weight: 700; margin-bottom: 0.2rem;">Select Book PDF</h3>
-          <p style="color: var(--text-muted); font-size: 0.78rem;">NCERT Books, Novels, Notes (100% Offline On-Device)</p>
+          <p style="color: var(--text-muted); font-size: 0.78rem;">NCERT Books, Novels, Notes (100% Offline)</p>
         </div>
         <button class="btn-select" id="btn-browse-pdf">Browse PDF from Storage</button>
       </div>
@@ -307,12 +353,12 @@
       <!-- Conversion Progress Box -->
       <div class="converting-box" id="converting-box">
         <div style="font-weight: 700; font-size: 0.95rem; margin-bottom: 0.3rem;" id="convert-status-title">
-          Extracting HTML & CSS Typography...
+          Converting to Pure HTML & CSS...
         </div>
         <div class="progress-bar-track">
           <div class="progress-bar-fill" id="progress-fill"></div>
         </div>
-        <div style="font-size: 0.78rem; color: var(--text-muted);" id="convert-status-sub">Extracting text coordinates...</div>
+        <div style="font-size: 0.78rem; color: var(--text-muted);" id="convert-status-sub">Extracting typography...</div>
       </div>
     </div>
   </div>
@@ -324,15 +370,16 @@
         📥 Save HTML Book (.html)
       </button>
       <button class="btn-action-mobile" id="btn-view-code">
-        🔍 Inspect HTML Code
+        🔍 Inspect Code
       </button>
       <button class="btn-action-mobile" id="btn-share-html">
         📤 Share
       </button>
     </div>
 
+    <!-- Responsive Continuous Scroll Stream -->
     <main class="reader-scroll-container" id="reader-stream">
-      <!-- Pure HTML/CSS Page Cards -->
+      <!-- Auto-scaled Pure HTML Pages injected here -->
     </main>
   </div>
 
@@ -340,7 +387,7 @@
   <div class="modal-overlay" id="code-modal">
     <div class="modal-card">
       <div class="modal-header">
-        <span style="font-weight: 700; font-size: 0.85rem;">Generated Pure HTML/CSS Code</span>
+        <span style="font-weight: 700; font-size: 0.85rem;">Generated Pure HTML & CSS Code</span>
         <button class="btn-action-mobile" id="btn-close-modal">✖</button>
       </div>
       <pre class="code-content-box" id="code-box"></pre>
@@ -366,6 +413,7 @@
     const btnViewCode = document.getElementById('btn-view-code');
     const btnShareHtml = document.getElementById('btn-share-html');
     const btnBackHome = document.getElementById('btn-back-home');
+    const btnThemeToggle = document.getElementById('btn-theme-toggle');
     const codeModal = document.getElementById('code-modal');
     const codeBox = document.getElementById('code-box');
     const btnCloseModal = document.getElementById('btn-close-modal');
@@ -373,21 +421,49 @@
     let currentDocTitle = "Book";
     let fullHtmlBookContent = "";
 
+    // Map PDF font names to rich Google Web Fonts
     function mapFontFamily(pdfFontName) {
       const fn = (pdfFontName || '').toLowerCase();
       if (fn.includes('script') || fn.includes('joe') || fn.includes('hand')) {
         return "'Caveat', 'Marck Script', cursive, serif";
       } else if (fn.includes('bookman')) {
-        return "'URW Bookman', 'Bookman Old Style', 'Georgia', serif";
+        return "'URW Bookman', 'Bookman Old Style', 'Bookman', 'Georgia', serif";
       } else if (fn.includes('schoolbook') || fn.includes('century')) {
-        return "'Century Schoolbook', 'Georgia', serif";
+        return "'Century Schoolbook', 'Century Schoolbook L', 'Georgia', serif";
       } else if (fn.includes('gothic') || fn.includes('sans') || fn.includes('arial') || fn.includes('helvetica')) {
         return "'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
       } else if (fn.includes('times') || fn.includes('serif')) {
-        return "'Times New Roman', Times, serif";
+        return "'Times New Roman', 'Times', 'Georgia', serif";
       }
-      return "'URW Bookman', 'Bookman Old Style', Georgia, serif";
+      return "'URW Bookman', 'Bookman Old Style', 'Georgia', serif";
     }
+
+    // Auto-Scale Pages Dynamically to Guarantee Zero Screen Cut-Off
+    function autoScalePages() {
+      const container = document.getElementById('reader-stream');
+      if (!container) return;
+      const availableWidth = container.clientWidth - 16;
+      if (availableWidth <= 0) return;
+
+      document.querySelectorAll('.pure-html-page').forEach(page => {
+        const baseWidth = parseFloat(page.getAttribute('data-base-width')) || 500;
+        const baseHeight = parseFloat(page.getAttribute('data-base-height')) || 700;
+        
+        // Calculate scale factor (never overflow container width)
+        const scale = Math.min(1.0, availableWidth / baseWidth);
+
+        page.style.transform = `scale(${scale})`;
+        page.style.transformOrigin = 'top center';
+
+        const wrapper = page.parentElement;
+        if (wrapper && wrapper.classList.contains('page-scale-box')) {
+          wrapper.style.width = `${Math.round(baseWidth * scale)}px`;
+          wrapper.style.height = `${Math.round(baseHeight * scale)}px`;
+        }
+      });
+    }
+
+    window.addEventListener('resize', autoScalePages);
 
     btnBrowse.addEventListener('click', () => filePicker.click());
     dropzoneCard.addEventListener('click', (e) => {
@@ -417,14 +493,14 @@
         for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
           const pct = Math.round((pageNum / totalPages) * 100);
           progressFill.style.width = `${pct}%`;
-          statusSub.textContent = `Extracting pure HTML & typography on Page ${pageNum}/${totalPages}...`;
+          statusSub.textContent = `Extracting pure HTML & CSS layout on Page ${pageNum}/${totalPages}...`;
 
           const page = await pdf.getPage(pageNum);
           const viewport = page.getViewport({ scale: 1.0 });
-          const width = Math.round(viewport.width);
-          const height = Math.round(viewport.height);
+          const width = Math.round(viewport.width * 100) / 100;
+          const height = Math.round(viewport.height * 100) / 100;
 
-          // Extract pure text items with exact font metrics & coordinates
+          // Extract text items with exact typography
           const textContent = await page.getTextContent({ normalizeWhitespace: true });
           let textLinesHtml = '';
 
@@ -445,65 +521,174 @@
 
             const escaped = str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-            const lineStyle = `position: absolute; left: ${tx}pt; top: ${ty}pt; font-family: ${fontFamily}; font-size: ${fontSize}pt; font-weight: ${isBold ? 'bold' : 'normal'}; font-style: ${isItalic ? 'italic' : 'normal'}; color: #111827; letter-spacing: -0.02em; white-space: nowrap;`;
+            const lineStyle = `position: absolute; left: ${tx}pt; top: ${ty}pt; font-family: ${fontFamily}; font-size: ${fontSize}pt; font-weight: ${isBold ? 'bold' : 'normal'}; font-style: ${isItalic ? 'italic' : 'normal'}; color: #111827; letter-spacing: -0.02em; white-space: nowrap; line-height: 1.15;`;
 
-            textLinesHtml += `    <div class="text-line-div" style="${lineStyle}">${escaped}</div>\n`;
+            textLinesHtml += `      <div class="text-line-div" data-target-width="${targetWidth}" style="${lineStyle}">${escaped}</div>\n`;
           });
 
-          // Build Pure HTML Page Card (No full page images!)
-          const pageCard = `
-  <div class="pure-html-page" id="page-${pageNum}" style="position: relative; width: ${width}pt; height: ${height}pt;">
-    <div class="page-number-tag">Page ${pageNum}</div>
-${textLinesHtml}  </div>`;
+          // Build Clean Responsive Page Card with wrapper
+          const pageCardHtml = `
+    <div class="page-scale-box" style="width: ${width}px; height: ${height}px;">
+      <div class="pure-html-page" id="page-${pageNum}" data-base-width="${width}" data-base-height="${height}" style="width: ${width}pt; height: ${height}pt;">
+        <div class="page-number-tag">Page ${pageNum}</div>
+${textLinesHtml}      </div>
+    </div>`;
 
-          pagesHtmlCards.push(pageCard);
+          pagesHtmlCards.push(pageCardHtml);
 
           // Append to live preview
           const tempDiv = document.createElement('div');
-          tempDiv.innerHTML = pageCard;
+          tempDiv.innerHTML = pageCardHtml;
           readerStream.appendChild(tempDiv.firstElementChild);
         }
 
-        // Build Complete Standalone Pure HTML Document
+        // Build Complete Responsive Standalone HTML Document
         fullHtmlBookContent = `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${currentDocTitle} - Pure HTML Book</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+  <title>${currentDocTitle} - Complete HTML Book</title>
+  
+  <!-- Precision Web Typography -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&family=Inter:wght@400;500;600;700;800&family=Marck+Script&family=Montserrat:ital,wght@0,400;0,600;1,400&family=URW+Bookman:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+  
   <style>
-    :root { --bg: #1e293b; --card: #ffffff; --text: #0f172a; }
+    :root {
+      --bg-app: #0f172a;
+      --book-bg: #ffffff;
+      --book-text: #111827;
+      --book-shadow: 0 15px 35px rgba(0,0,0,0.35), 0 3px 10px rgba(0,0,0,0.15);
+      --header-bg: rgba(15, 23, 42, 0.88);
+      --header-border: rgba(255, 255, 255, 0.12);
+      --text-main: #f8fafc;
+      --accent: #38bdf8;
+    }
+
+    [data-theme="light"] {
+      --bg-app: #e2e8f0;
+      --book-bg: #ffffff;
+      --book-text: #0f172a;
+      --header-bg: rgba(255, 255, 255, 0.9);
+      --header-border: rgba(0, 0, 0, 0.1);
+      --text-main: #0f172a;
+      --accent: #0284c7;
+    }
+
+    [data-theme="sepia"] {
+      --bg-app: #ebd9b8;
+      --book-bg: #fdfbf7;
+      --book-text: #453216;
+      --header-bg: rgba(245, 230, 203, 0.95);
+      --header-border: rgba(120, 90, 50, 0.2);
+      --text-main: #453216;
+      --accent: #b45309;
+    }
+
     * { box-sizing: border-box; margin: 0; padding: 0; }
+    
     body {
-      background-color: var(--bg);
-      font-family: 'Inter', sans-serif;
+      background-color: var(--bg-app);
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       min-height: 100vh;
       display: flex;
       flex-direction: column;
       align-items: center;
-      padding: 30px 10px 80px;
-      gap: 28px;
-      user-select: text;
+      padding-bottom: 80px;
+      overflow-x: hidden;
+      transition: background-color 0.2s ease;
     }
+
+    /* Floating Reading Bar */
+    .floating-header {
+      position: fixed;
+      top: 14px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--header-bg);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--header-border);
+      border-radius: 40px;
+      padding: 0.4rem 1.15rem;
+      display: flex;
+      align-items: center;
+      gap: 0.85rem;
+      z-index: 1000;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+      color: var(--text-main);
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+
+    .book-title-tag {
+      font-weight: 700;
+      white-space: nowrap;
+      max-width: 200px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .btn-icon {
+      background: rgba(255,255,255,0.08);
+      border: 1px solid var(--header-border);
+      color: var(--text-main);
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 0.85rem;
+      transition: all 0.15s;
+    }
+    .btn-icon:hover { background: var(--accent); color: #fff; }
+
+    /* Continuous Stream */
+    .book-pages-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 24px;
+      margin-top: 70px;
+      width: 100%;
+      padding: 0 10px;
+    }
+
+    .page-scale-box {
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      margin: 0 auto;
+    }
+
     .pure-html-page {
       position: relative;
-      background-color: var(--card);
+      background-color: var(--book-bg);
+      color: var(--book-text);
+      box-shadow: var(--book-shadow);
       border-radius: 4px;
-      box-shadow: 0 15px 35px rgba(0,0,0,0.3);
       overflow: hidden;
+      user-select: text;
+      -webkit-user-select: text;
+      transform-origin: top center;
     }
+
     .page-number-tag {
       position: absolute;
       top: 6px;
       right: 12px;
       font-size: 0.65rem;
       color: #94a3b8;
+      font-family: sans-serif;
       font-weight: 700;
-      z-index: 10;
+      z-index: 20;
+      pointer-events: none;
+      opacity: 0.7;
     }
+
     .text-line-div {
       position: absolute;
       white-space: nowrap;
@@ -513,14 +698,66 @@ ${textLinesHtml}  </div>`;
     }
   </style>
 </head>
-<body>
+<body data-theme="dark">
+
+  <!-- Floating Toolbar -->
+  <div class="floating-header">
+    <div class="book-title-tag">📖 ${currentDocTitle}</div>
+    <button class="btn-icon" id="theme-btn" title="Toggle Theme">🌓</button>
+    <button class="btn-icon" id="top-btn" title="Scroll to Top">⬆</button>
+  </div>
+
+  <!-- Continuous Stream of Pages -->
+  <main class="book-pages-container" id="pages-stream">
 ${pagesHtmlCards.join('\n')}
+  </main>
+
+  <script>
+    function autoScalePages() {
+      const container = document.getElementById('pages-stream');
+      if (!container) return;
+      const availableWidth = container.clientWidth - 20;
+      if (availableWidth <= 0) return;
+
+      document.querySelectorAll('.pure-html-page').forEach(page => {
+        const baseWidth = parseFloat(page.getAttribute('data-base-width')) || 500;
+        const baseHeight = parseFloat(page.getAttribute('data-base-height')) || 700;
+        const scale = Math.min(1.0, availableWidth / baseWidth);
+
+        page.style.transform = 'scale(' + scale + ')';
+        page.style.transformOrigin = 'top center';
+
+        const wrapper = page.parentElement;
+        if (wrapper && wrapper.classList.contains('page-scale-box')) {
+          wrapper.style.width = Math.round(baseWidth * scale) + 'px';
+          wrapper.style.height = Math.round(baseHeight * scale) + 'px';
+        }
+      });
+    }
+
+    window.addEventListener('resize', autoScalePages);
+    window.addEventListener('DOMContentLoaded', autoScalePages);
+    setTimeout(autoScalePages, 100);
+
+    const themes = ['dark', 'light', 'sepia'];
+    let curTheme = 'dark';
+    document.getElementById('theme-btn').addEventListener('click', () => {
+      curTheme = themes[(themes.indexOf(curTheme) + 1) % themes.length];
+      document.body.setAttribute('data-theme', curTheme);
+    });
+
+    document.getElementById('top-btn').addEventListener('click', () => {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+  <\/script>
 </body>
 </html>`;
 
+        // Switch to reader view & auto-scale
         viewUpload.classList.remove('active');
         viewReader.classList.add('active');
         btnBackHome.style.display = 'inline-flex';
+        setTimeout(autoScalePages, 50);
 
       } catch (err) {
         alert('Error converting PDF: ' + err.message);
@@ -536,8 +773,16 @@ ${pagesHtmlCards.join('\n')}
       filePicker.value = '';
     });
 
+    // Theme toggle in app
+    const themes = ['dark', 'light', 'sepia'];
+    let appTheme = 'dark';
+    btnThemeToggle.addEventListener('click', () => {
+      appTheme = themes[(themes.indexOf(appTheme) + 1) % themes.length];
+      document.body.setAttribute('data-theme', appTheme);
+    });
+
     btnViewCode.addEventListener('click', () => {
-      codeBox.textContent = fullHtmlBookContent.slice(0, 4000) + "\n\n... [Content continues for all pages] ...";
+      codeBox.textContent = fullHtmlBookContent.slice(0, 4500) + "\n\n... [Continuous Pure HTML+CSS for all pages] ...";
       codeModal.classList.add('open');
     });
 
