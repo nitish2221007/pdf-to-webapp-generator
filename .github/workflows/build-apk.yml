@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Code
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
       - name: Set up JDK 17
@@ -34,35 +34,36 @@ jobs:
       - name: Build Android APK
         working-directory: android
         run: |
-          gradle assembleDebug --stacktrace
+          gradle assembleDebug --stacktrace --no-daemon
 
-      - name: Rename APK for Easy Download
+      - name: Prepare APK Output
         run: |
           mkdir -p release-apk
           cp android/app/build/outputs/apk/debug/app-debug.apk release-apk/PDF_to_HTML_Converter.apk
+          ls -lh release-apk/
 
-      - name: Upload APK as GitHub Artifact
+      - name: Upload APK as GitHub Action Artifact
         uses: actions/upload-artifact@v4
         with:
           name: PDF_to_HTML_Converter_Android_App
           path: release-apk/PDF_to_HTML_Converter.apk
 
-      - name: Create GitHub Release & Upload APK
+      - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
         with:
-          tag_name: v1.0.0-${{ github.run_number }}
-          name: "📱 PDF to HTML Converter Android App v1.0.0"
+          tag_name: "v1.0.${{ github.run_number }}"
+          name: "📱 PDF to HTML Converter App v1.0.${{ github.run_number }}"
           body: |
             ### 📱 Download Android Mobile App (APK)
             
-            Click below to download the Android APK directly onto your phone:
-            - **[PDF_to_HTML_Converter.apk](https://github.com/${{ github.repository }}/releases/download/v1.0.0-${{ github.run_number }}/PDF_to_HTML_Converter.apk)**
+            Download the Android APK directly onto your phone:
+            - **[PDF_to_HTML_Converter.apk](https://github.com/${{ github.repository }}/releases/download/v1.0.${{ github.run_number }}/PDF_to_HTML_Converter.apk)**
             
             #### Features:
-            - 📄 Upload any PDF directly from mobile storage.
-            - 📖 Convert and read 100% matching HTML/CSS books with vertical scrolling.
-            - 📥 1-Click download of standalone `.html` book files straight into your phone's Downloads folder.
+            - 📄 Upload any PDF book directly from phone storage.
+            - 📖 Smooth vertical continuous reading in pure HTML & CSS.
+            - 📥 1-Click download of standalone `.html` book files.
           files: release-apk/PDF_to_HTML_Converter.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
