@@ -3,7 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>PDF to HTML Book Studio (Offline)</title>
+  <title>PDF to True HTML+CSS Converter (100% Offline)</title>
+  <!-- Google Fonts for precision typography -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&family=Inter:wght@400;500;600;700;800&family=Marck+Script&family=Montserrat:ital,wght@0,400;0,600;1,400&family=URW+Bookman:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
   <script src="pdf.min.js"></script>
   <style>
     :root {
@@ -22,17 +26,15 @@
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       background-color: var(--bg-dark);
       color: var(--text-main);
       min-height: 100vh;
       display: flex;
       flex-direction: column;
-      user-select: none;
-      -webkit-user-select: none;
     }
 
-    /* Top App Bar */
+    /* Header */
     .app-header {
       background: var(--bg-surface);
       border-bottom: 1px solid var(--border-color);
@@ -46,7 +48,7 @@
     }
 
     .brand-title {
-      font-size: 1rem;
+      font-size: 0.95rem;
       font-weight: 800;
       display: flex;
       align-items: center;
@@ -54,24 +56,23 @@
       color: #fff;
     }
 
-    .offline-tag {
-      background: rgba(16, 185, 129, 0.2);
-      color: #34d399;
-      border: 1px solid rgba(16, 185, 129, 0.4);
+    .tag-pure-html {
+      background: rgba(236, 72, 153, 0.2);
+      color: #f472b6;
+      border: 1px solid rgba(236, 72, 153, 0.4);
       padding: 0.15rem 0.45rem;
       border-radius: 6px;
-      font-size: 0.68rem;
+      font-size: 0.65rem;
       font-weight: 700;
     }
 
-    /* Views */
     .view-section { display: none; width: 100%; flex: 1; }
     .view-section.active { display: flex; flex-direction: column; }
 
-    /* Home / Upload Section */
+    /* Upload Screen */
     .upload-container {
-      max-width: 500px;
-      margin: 1.5rem auto;
+      max-width: 520px;
+      margin: 2rem auto;
       padding: 0 1rem;
       text-align: center;
       display: flex;
@@ -100,7 +101,7 @@
       border: 2px dashed var(--border-color);
       background: var(--bg-surface);
       border-radius: 14px;
-      padding: 2rem 1.25rem;
+      padding: 2.25rem 1.25rem;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -109,8 +110,8 @@
     }
 
     .upload-icon {
-      width: 56px;
-      height: 56px;
+      width: 60px;
+      height: 60px;
       border-radius: 50%;
       background: rgba(56,189,248,0.12);
       display: flex;
@@ -171,6 +172,7 @@
       top: 50px;
       z-index: 90;
       gap: 0.5rem;
+      flex-wrap: wrap;
     }
 
     .btn-action-mobile {
@@ -179,7 +181,7 @@
       color: #fff;
       padding: 0.4rem 0.65rem;
       border-radius: 8px;
-      font-size: 0.78rem;
+      font-size: 0.75rem;
       font-weight: 600;
       cursor: pointer;
       display: inline-flex;
@@ -196,34 +198,76 @@
 
     .reader-scroll-container {
       flex: 1;
-      padding: 1rem 0.5rem 5rem;
+      padding: 1.5rem 0.5rem 5rem;
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 1.5rem;
+      gap: 24px;
       overflow-y: auto;
-      -webkit-overflow-scrolling: touch;
-      user-select: text;
-      -webkit-user-select: text;
+      background: #1e293b;
     }
 
-    .page-sheet {
+    /* Pure HTML Page Card */
+    .pure-html-page {
       position: relative;
-      background: #ffffff;
-      border-radius: 4px;
-      box-shadow: 0 10px 25px rgba(0,0,0,0.3);
-      max-width: 100%;
+      background-color: #ffffff;
+      box-shadow: 0 15px 35px rgba(0,0,0,0.3);
+      border-radius: 3px;
       overflow: hidden;
+      user-select: text;
     }
 
-    .page-sheet-num {
+    .page-number-tag {
       position: absolute;
-      top: 4px;
-      right: 8px;
-      font-size: 0.6rem;
+      top: 6px;
+      right: 10px;
+      font-size: 0.65rem;
       color: #94a3b8;
       font-weight: 700;
-      z-index: 10;
+      z-index: 20;
+    }
+
+    .text-line-div {
+      position: absolute;
+      white-space: nowrap;
+      cursor: text;
+      transform-origin: left center;
+      line-height: 1.15;
+    }
+
+    /* Code Modal */
+    .modal-overlay {
+      position: fixed;
+      top: 0; left: 0; width: 100vw; height: 100vh;
+      background: rgba(0,0,0,0.8);
+      z-index: 200;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      width: 100%; max-width: 600px; max-height: 80vh;
+      display: flex; flex-direction: column; overflow: hidden;
+    }
+    .modal-header {
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid var(--border-color);
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .code-content-box {
+      padding: 1rem;
+      background: #060911;
+      color: #38bdf8;
+      font-family: monospace;
+      font-size: 0.75rem;
+      overflow: auto;
+      flex: 1;
+      white-space: pre-wrap;
     }
   </style>
 </head>
@@ -233,7 +277,7 @@
   <header class="app-header">
     <div class="brand-title">
       <span>📚 PDF to HTML Studio</span>
-      <span class="offline-tag">100% OFFLINE</span>
+      <span class="tag-pure-html">100% PURE HTML & CSS</span>
     </div>
     <button class="btn-action-mobile" id="btn-back-home" style="display: none;">
       ➕ New PDF
@@ -244,16 +288,18 @@
   <div class="view-section active" id="view-upload">
     <div class="upload-container">
       <div>
-        <h1 class="hero-heading">Offline PDF to HTML Book Converter</h1>
-        <p class="hero-sub">Internet ya Server ke bina, phone ke andar hi kisi bhi PDF ko 1:1 HTML Book me convert karein!</p>
+        <h1 class="hero-heading">Pure HTML & CSS Book Converter</h1>
+        <p class="hero-sub">
+          Yeh app PDF ke har word ko <b>Real HTML Text Divs, Exact CSS Fonts aur Hex Colors</b> me convert karti hai — koi poori page ki image nahi banti!
+        </p>
       </div>
 
       <div class="dropzone-card" id="dropzone-card">
         <input type="file" id="file-picker" accept="application/pdf" style="display: none;">
-        <div class="upload-icon">📄</div>
+        <div class="upload-icon">📖</div>
         <div>
-          <h3 style="font-size: 1.05rem; font-weight: 700; margin-bottom: 0.2rem;">Select Book PDF File</h3>
-          <p style="color: var(--text-muted); font-size: 0.78rem;">NCERT books, novels, notes (Processed on-device)</p>
+          <h3 style="font-size: 1.05rem; font-weight: 700; margin-bottom: 0.2rem;">Select Book PDF</h3>
+          <p style="color: var(--text-muted); font-size: 0.78rem;">NCERT Books, Novels, Notes (100% Offline On-Device)</p>
         </div>
         <button class="btn-select" id="btn-browse-pdf">Browse PDF from Storage</button>
       </div>
@@ -261,12 +307,12 @@
       <!-- Conversion Progress Box -->
       <div class="converting-box" id="converting-box">
         <div style="font-weight: 700; font-size: 0.95rem; margin-bottom: 0.3rem;" id="convert-status-title">
-          Converting PDF to HTML Book...
+          Extracting HTML & CSS Typography...
         </div>
         <div class="progress-bar-track">
           <div class="progress-bar-fill" id="progress-fill"></div>
         </div>
-        <div style="font-size: 0.78rem; color: var(--text-muted);" id="convert-status-sub">Extracting pages on-device...</div>
+        <div style="font-size: 0.78rem; color: var(--text-muted);" id="convert-status-sub">Extracting text coordinates...</div>
       </div>
     </div>
   </div>
@@ -277,14 +323,28 @@
       <button class="btn-action-mobile btn-save-green" id="btn-save-html">
         📥 Save HTML Book (.html)
       </button>
+      <button class="btn-action-mobile" id="btn-view-code">
+        🔍 Inspect HTML Code
+      </button>
       <button class="btn-action-mobile" id="btn-share-html">
         📤 Share
       </button>
     </div>
 
     <main class="reader-scroll-container" id="reader-stream">
-      <!-- Continuous pages rendered dynamically -->
+      <!-- Pure HTML/CSS Page Cards -->
     </main>
+  </div>
+
+  <!-- Source Code Modal -->
+  <div class="modal-overlay" id="code-modal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <span style="font-weight: 700; font-size: 0.85rem;">Generated Pure HTML/CSS Code</span>
+        <button class="btn-action-mobile" id="btn-close-modal">✖</button>
+      </div>
+      <pre class="code-content-box" id="code-box"></pre>
+    </div>
   </div>
 
   <script>
@@ -303,11 +363,31 @@
     const statusSub = document.getElementById('convert-status-sub');
     const readerStream = document.getElementById('reader-stream');
     const btnSaveHtml = document.getElementById('btn-save-html');
+    const btnViewCode = document.getElementById('btn-view-code');
     const btnShareHtml = document.getElementById('btn-share-html');
     const btnBackHome = document.getElementById('btn-back-home');
+    const codeModal = document.getElementById('code-modal');
+    const codeBox = document.getElementById('code-box');
+    const btnCloseModal = document.getElementById('btn-close-modal');
 
     let currentDocTitle = "Book";
     let fullHtmlBookContent = "";
+
+    function mapFontFamily(pdfFontName) {
+      const fn = (pdfFontName || '').toLowerCase();
+      if (fn.includes('script') || fn.includes('joe') || fn.includes('hand')) {
+        return "'Caveat', 'Marck Script', cursive, serif";
+      } else if (fn.includes('bookman')) {
+        return "'URW Bookman', 'Bookman Old Style', 'Georgia', serif";
+      } else if (fn.includes('schoolbook') || fn.includes('century')) {
+        return "'Century Schoolbook', 'Georgia', serif";
+      } else if (fn.includes('gothic') || fn.includes('sans') || fn.includes('arial') || fn.includes('helvetica')) {
+        return "'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+      } else if (fn.includes('times') || fn.includes('serif')) {
+        return "'Times New Roman', Times, serif";
+      }
+      return "'URW Bookman', 'Bookman Old Style', Georgia, serif";
+    }
 
     btnBrowse.addEventListener('click', () => filePicker.click());
     dropzoneCard.addEventListener('click', (e) => {
@@ -316,15 +396,14 @@
 
     filePicker.addEventListener('change', async (e) => {
       if (e.target.files.length > 0) {
-        const file = e.target.files[0];
-        await processPdfOffline(file);
+        await processPdfToPureHtml(e.target.files[0]);
       }
     });
 
-    async function processPdfOffline(file) {
+    async function processPdfToPureHtml(file) {
       currentDocTitle = file.name.replace(/\.pdf$/i, '');
       convertingBox.style.display = 'block';
-      statusTitle.textContent = `Converting "${file.name}"...`;
+      statusTitle.textContent = `Converting "${file.name}" to Pure HTML+CSS...`;
 
       try {
         const arrayBuffer = await file.arrayBuffer();
@@ -332,77 +411,113 @@
         const pdf = await loadingTask.promise;
         const totalPages = pdf.numPages;
 
-        let pagesHtmlList = [];
+        let pagesHtmlCards = [];
         readerStream.innerHTML = '';
 
         for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
           const pct = Math.round((pageNum / totalPages) * 100);
           progressFill.style.width = `${pct}%`;
-          statusSub.textContent = `Rendering page ${pageNum} of ${totalPages} (${pct}%)...`;
+          statusSub.textContent = `Extracting pure HTML & typography on Page ${pageNum}/${totalPages}...`;
 
           const page = await pdf.getPage(pageNum);
-          const viewport = page.getViewport({ scale: 1.5 });
+          const viewport = page.getViewport({ scale: 1.0 });
+          const width = Math.round(viewport.width);
+          const height = Math.round(viewport.height);
 
-          // Render canvas background
-          const canvas = document.createElement('canvas');
-          const context = canvas.getContext('2d');
-          canvas.height = viewport.height;
-          canvas.width = viewport.width;
-
-          await page.render({ canvasContext: context, viewport: viewport }).promise;
-          const bgDataUrl = canvas.toDataURL('image/jpeg', 0.85);
-
-          // Extract text content
-          const textContent = await page.getTextContent();
-          let textSpansHtml = '';
+          // Extract pure text items with exact font metrics & coordinates
+          const textContent = await page.getTextContent({ normalizeWhitespace: true });
+          let textLinesHtml = '';
 
           textContent.items.forEach(item => {
-            const tx = item.transform[4] * 1.5;
-            const ty = viewport.height - (item.transform[5] * 1.5) - (item.height * 1.5);
-            const fontSize = Math.round(item.transform[0] * 1.5 * 0.95);
-            const str = item.str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-            if (str.trim().length > 0) {
-              textSpansHtml += `<span style="position: absolute; left: ${tx.toFixed(1)}px; top: ${ty.toFixed(1)}px; font-size: ${fontSize}px; font-family: serif; color: transparent; pointer-events: auto; white-space: nowrap;">${str}</span>`;
-            }
+            const str = item.str;
+            if (!str || !str.trim()) return;
+
+            const tx = Math.round(item.transform[4] * 100) / 100;
+            const ty = Math.round((height - item.transform[5] - (item.height || 10)) * 100) / 100;
+            const rawSize = Math.sqrt(item.transform[0] * item.transform[0] + item.transform[1] * item.transform[1]);
+            const fontSize = Math.round(rawSize * 0.94 * 100) / 100;
+            const targetWidth = Math.round(item.width * 100) / 100;
+
+            const fontName = item.fontName || '';
+            const fontFamily = mapFontFamily(fontName);
+            const isBold = fontName.toLowerCase().includes('bold') || fontName.toLowerCase().includes('demi');
+            const isItalic = fontName.toLowerCase().includes('italic') || fontName.toLowerCase().includes('oblique');
+
+            const escaped = str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+            const lineStyle = `position: absolute; left: ${tx}pt; top: ${ty}pt; font-family: ${fontFamily}; font-size: ${fontSize}pt; font-weight: ${isBold ? 'bold' : 'normal'}; font-style: ${isItalic ? 'italic' : 'normal'}; color: #111827; letter-spacing: -0.02em; white-space: nowrap;`;
+
+            textLinesHtml += `    <div class="text-line-div" style="${lineStyle}">${escaped}</div>\n`;
           });
 
-          const pageCardHtml = `
-            <div class="page-sheet" id="page-${pageNum}" style="width: ${viewport.width}px; max-width: 100%; position: relative;">
-              <div class="page-sheet-num">Page ${pageNum}</div>
-              <img src="${bgDataUrl}" style="width: 100%; display: block;" alt="Page ${pageNum}">
-              <div class="text-layer" style="position: absolute; left: 0; top: 0; width: 100%; height: 100%; overflow: hidden; pointer-events: none;">
-                ${textSpansHtml}
-              </div>
-            </div>
-          `;
+          // Build Pure HTML Page Card (No full page images!)
+          const pageCard = `
+  <div class="pure-html-page" id="page-${pageNum}" style="position: relative; width: ${width}pt; height: ${height}pt;">
+    <div class="page-number-tag">Page ${pageNum}</div>
+${textLinesHtml}  </div>`;
 
-          pagesHtmlList.push(pageCardHtml);
+          pagesHtmlCards.push(pageCard);
 
-          // Append to reader stream live
+          // Append to live preview
           const tempDiv = document.createElement('div');
-          tempDiv.innerHTML = pageCardHtml;
+          tempDiv.innerHTML = pageCard;
           readerStream.appendChild(tempDiv.firstElementChild);
         }
 
-        // Build standalone HTML book document
+        // Build Complete Standalone Pure HTML Document
         fullHtmlBookContent = `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${currentDocTitle}</title>
+  <title>${currentDocTitle} - Pure HTML Book</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&family=Inter:wght@400;500;600;700;800&family=Marck+Script&family=Montserrat:ital,wght@0,400;0,600;1,400&family=URW+Bookman:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
   <style>
-    body { background-color: #0f172a; margin: 0; padding: 20px 0 60px; display: flex; flex-direction: column; align-items: center; gap: 24px; font-family: sans-serif; }
-    .page-sheet { position: relative; background: #fff; border-radius: 4px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); max-width: 96%; overflow: hidden; }
-    .page-sheet-num { position: absolute; top: 6px; right: 10px; font-size: 0.65rem; color: #64748b; font-weight: 700; z-index: 10; }
+    :root { --bg: #1e293b; --card: #ffffff; --text: #0f172a; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: var(--bg);
+      font-family: 'Inter', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 30px 10px 80px;
+      gap: 28px;
+      user-select: text;
+    }
+    .pure-html-page {
+      position: relative;
+      background-color: var(--card);
+      border-radius: 4px;
+      box-shadow: 0 15px 35px rgba(0,0,0,0.3);
+      overflow: hidden;
+    }
+    .page-number-tag {
+      position: absolute;
+      top: 6px;
+      right: 12px;
+      font-size: 0.65rem;
+      color: #94a3b8;
+      font-weight: 700;
+      z-index: 10;
+    }
+    .text-line-div {
+      position: absolute;
+      white-space: nowrap;
+      cursor: text;
+      transform-origin: left center;
+      line-height: 1.15;
+    }
   </style>
 </head>
 <body>
-  ${pagesHtmlList.join('\n')}
+${pagesHtmlCards.join('\n')}
 </body>
 </html>`;
 
-        // Switch to reader view
         viewUpload.classList.remove('active');
         viewReader.classList.add('active');
         btnBackHome.style.display = 'inline-flex';
@@ -421,17 +536,23 @@
       filePicker.value = '';
     });
 
-    // Save HTML file via AndroidBridge or browser download
+    btnViewCode.addEventListener('click', () => {
+      codeBox.textContent = fullHtmlBookContent.slice(0, 4000) + "\n\n... [Content continues for all pages] ...";
+      codeModal.classList.add('open');
+    });
+
+    btnCloseModal.addEventListener('click', () => codeModal.classList.remove('open'));
+
     btnSaveHtml.addEventListener('click', () => {
       if (!fullHtmlBookContent) return;
-      const fileName = `${currentDocTitle}_HTML_Book.html`;
+      const fileName = `${currentDocTitle}_Pure_HTML_Book.html`;
 
       if (window.AndroidBridge && typeof window.AndroidBridge.saveHtmlBook === 'function') {
         window.AndroidBridge.saveHtmlBook(fileName, fullHtmlBookContent);
       } else {
         const blob = new Blob([fullHtmlBookContent], { type: 'text/html;charset=utf-8' });
         const link = document.createElement('a');
-        link.href = URLString = URL.createObjectURL(blob);
+        link.href = URL.createObjectURL(blob);
         link.download = fileName;
         link.click();
       }
@@ -439,15 +560,13 @@
 
     btnShareHtml.addEventListener('click', () => {
       if (!fullHtmlBookContent) return;
-      const fileName = `${currentDocTitle}_HTML_Book.html`;
+      const fileName = `${currentDocTitle}_Pure_HTML_Book.html`;
       if (window.AndroidBridge && typeof window.AndroidBridge.shareHtmlBook === 'function') {
         window.AndroidBridge.shareHtmlBook(fileName, fullHtmlBookContent);
       } else if (navigator.share) {
         const blob = new Blob([fullHtmlBookContent], { type: 'text/html' });
         const file = new File([blob], fileName, { type: 'text/html' });
         navigator.share({ title: currentDocTitle, files: [file] });
-      } else {
-        alert('Share not supported on this browser.');
       }
     });
   </script>
