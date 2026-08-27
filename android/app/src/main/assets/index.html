@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>PDF to HTML Book Studio (Offline)</title>
+  <script src="pdf.min.js"></script>
+  <style>
+    :root {
+      --bg-dark: #090d16;
+      --bg-surface: #111827;
+      --bg-card: #1f293d;
+      --border-color: #2e3d5b;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent-cyan: #38bdf8;
+      --accent-pink: #ec4899;
+      --accent-green: #10b981;
+      --accent-gradient: linear-gradient(135deg, #ec4899, #8b5cf6, #3b82f6);
+      --green-gradient: linear-gradient(135deg, #059669, #10b981, #34d399);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    /* Top App Bar */
+    .app-header {
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border-color);
+      padding: 0.75rem 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .brand-title {
+      font-size: 1rem;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      color: #fff;
+    }
+
+    .offline-tag {
+      background: rgba(16, 185, 129, 0.2);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.4);
+      padding: 0.15rem 0.45rem;
+      border-radius: 6px;
+      font-size: 0.68rem;
+      font-weight: 700;
+    }
+
+    /* Views */
+    .view-section { display: none; width: 100%; flex: 1; }
+    .view-section.active { display: flex; flex-direction: column; }
+
+    /* Home / Upload Section */
+    .upload-container {
+      max-width: 500px;
+      margin: 1.5rem auto;
+      padding: 0 1rem;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1.25rem;
+    }
+
+    .hero-heading {
+      font-size: 1.5rem;
+      font-weight: 800;
+      line-height: 1.3;
+      background: linear-gradient(135deg, #ffffff 40%, #94a3b8);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .hero-sub {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      line-height: 1.4;
+    }
+
+    .dropzone-card {
+      width: 100%;
+      border: 2px dashed var(--border-color);
+      background: var(--bg-surface);
+      border-radius: 14px;
+      padding: 2rem 1.25rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1rem;
+      cursor: pointer;
+    }
+
+    .upload-icon {
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: rgba(56,189,248,0.12);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.8rem;
+    }
+
+    .btn-select {
+      background: var(--accent-gradient);
+      color: #fff;
+      font-weight: 700;
+      font-size: 0.95rem;
+      padding: 0.75rem 1.5rem;
+      border-radius: 10px;
+      border: none;
+      cursor: pointer;
+      box-shadow: 0 4px 15px rgba(236,72,153,0.3);
+      width: 100%;
+    }
+
+    .converting-box {
+      display: none;
+      width: 100%;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 1.5rem 1rem;
+      text-align: center;
+    }
+
+    .progress-bar-track {
+      width: 100%;
+      height: 8px;
+      background: var(--bg-card);
+      border-radius: 4px;
+      overflow: hidden;
+      margin: 1rem 0 0.5rem;
+    }
+
+    .progress-bar-fill {
+      width: 0%;
+      height: 100%;
+      background: var(--accent-gradient);
+      border-radius: 4px;
+      transition: width 0.2s ease;
+    }
+
+    /* Reader View */
+    .reader-toolbar {
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border-color);
+      padding: 0.5rem 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 50px;
+      z-index: 90;
+      gap: 0.5rem;
+    }
+
+    .btn-action-mobile {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      color: #fff;
+      padding: 0.4rem 0.65rem;
+      border-radius: 8px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+    }
+
+    .btn-save-green {
+      background: var(--green-gradient);
+      border: none;
+      font-weight: 700;
+      box-shadow: 0 2px 10px rgba(16,185,129,0.3);
+    }
+
+    .reader-scroll-container {
+      flex: 1;
+      padding: 1rem 0.5rem 5rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1.5rem;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      user-select: text;
+      -webkit-user-select: text;
+    }
+
+    .page-sheet {
+      position: relative;
+      background: #ffffff;
+      border-radius: 4px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+      max-width: 100%;
+      overflow: hidden;
+    }
+
+    .page-sheet-num {
+      position: absolute;
+      top: 4px;
+      right: 8px;
+      font-size: 0.6rem;
+      color: #94a3b8;
+      font-weight: 700;
+      z-index: 10;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top App Header -->
+  <header class="app-header">
+    <div class="brand-title">
+      <span>📚 PDF to HTML Studio</span>
+      <span class="offline-tag">100% OFFLINE</span>
+    </div>
+    <button class="btn-action-mobile" id="btn-back-home" style="display: none;">
+      ➕ New PDF
+    </button>
+  </header>
+
+  <!-- VIEW 1: Offline PDF Picker -->
+  <div class="view-section active" id="view-upload">
+    <div class="upload-container">
+      <div>
+        <h1 class="hero-heading">Offline PDF to HTML Book Converter</h1>
+        <p class="hero-sub">Internet ya Server ke bina, phone ke andar hi kisi bhi PDF ko 1:1 HTML Book me convert karein!</p>
+      </div>
+
+      <div class="dropzone-card" id="dropzone-card">
+        <input type="file" id="file-picker" accept="application/pdf" style="display: none;">
+        <div class="upload-icon">📄</div>
+        <div>
+          <h3 style="font-size: 1.05rem; font-weight: 700; margin-bottom: 0.2rem;">Select Book PDF File</h3>
+          <p style="color: var(--text-muted); font-size: 0.78rem;">NCERT books, novels, notes (Processed on-device)</p>
+        </div>
+        <button class="btn-select" id="btn-browse-pdf">Browse PDF from Storage</button>
+      </div>
+
+      <!-- Conversion Progress Box -->
+      <div class="converting-box" id="converting-box">
+        <div style="font-weight: 700; font-size: 0.95rem; margin-bottom: 0.3rem;" id="convert-status-title">
+          Converting PDF to HTML Book...
+        </div>
+        <div class="progress-bar-track">
+          <div class="progress-bar-fill" id="progress-fill"></div>
+        </div>
+        <div style="font-size: 0.78rem; color: var(--text-muted);" id="convert-status-sub">Extracting pages on-device...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- VIEW 2: In-App Reader & Downloader -->
+  <div class="view-section" id="view-reader">
+    <div class="reader-toolbar">
+      <button class="btn-action-mobile btn-save-green" id="btn-save-html">
+        📥 Save HTML Book (.html)
+      </button>
+      <button class="btn-action-mobile" id="btn-share-html">
+        📤 Share
+      </button>
+    </div>
+
+    <main class="reader-scroll-container" id="reader-stream">
+      <!-- Continuous pages rendered dynamically -->
+    </main>
+  </div>
+
+  <script>
+    if (typeof pdfjsLib !== 'undefined') {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = 'pdf.worker.min.js';
+    }
+
+    const viewUpload = document.getElementById('view-upload');
+    const viewReader = document.getElementById('view-reader');
+    const btnBrowse = document.getElementById('btn-browse-pdf');
+    const filePicker = document.getElementById('file-picker');
+    const dropzoneCard = document.getElementById('dropzone-card');
+    const convertingBox = document.getElementById('converting-box');
+    const progressFill = document.getElementById('progress-fill');
+    const statusTitle = document.getElementById('convert-status-title');
+    const statusSub = document.getElementById('convert-status-sub');
+    const readerStream = document.getElementById('reader-stream');
+    const btnSaveHtml = document.getElementById('btn-save-html');
+    const btnShareHtml = document.getElementById('btn-share-html');
+    const btnBackHome = document.getElementById('btn-back-home');
+
+    let currentDocTitle = "Book";
+    let fullHtmlBookContent = "";
+
+    btnBrowse.addEventListener('click', () => filePicker.click());
+    dropzoneCard.addEventListener('click', (e) => {
+      if (e.target !== btnBrowse) filePicker.click();
+    });
+
+    filePicker.addEventListener('change', async (e) => {
+      if (e.target.files.length > 0) {
+        const file = e.target.files[0];
+        await processPdfOffline(file);
+      }
+    });
+
+    async function processPdfOffline(file) {
+      currentDocTitle = file.name.replace(/\.pdf$/i, '');
+      convertingBox.style.display = 'block';
+      statusTitle.textContent = `Converting "${file.name}"...`;
+
+      try {
+        const arrayBuffer = await file.arrayBuffer();
+        const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+        const pdf = await loadingTask.promise;
+        const totalPages = pdf.numPages;
+
+        let pagesHtmlList = [];
+        readerStream.innerHTML = '';
+
+        for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
+          const pct = Math.round((pageNum / totalPages) * 100);
+          progressFill.style.width = `${pct}%`;
+          statusSub.textContent = `Rendering page ${pageNum} of ${totalPages} (${pct}%)...`;
+
+          const page = await pdf.getPage(pageNum);
+          const viewport = page.getViewport({ scale: 1.5 });
+
+          // Render canvas background
+          const canvas = document.createElement('canvas');
+          const context = canvas.getContext('2d');
+          canvas.height = viewport.height;
+          canvas.width = viewport.width;
+
+          await page.render({ canvasContext: context, viewport: viewport }).promise;
+          const bgDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+
+          // Extract text content
+          const textContent = await page.getTextContent();
+          let textSpansHtml = '';
+
+          textContent.items.forEach(item => {
+            const tx = item.transform[4] * 1.5;
+            const ty = viewport.height - (item.transform[5] * 1.5) - (item.height * 1.5);
+            const fontSize = Math.round(item.transform[0] * 1.5 * 0.95);
+            const str = item.str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            if (str.trim().length > 0) {
+              textSpansHtml += `<span style="position: absolute; left: ${tx.toFixed(1)}px; top: ${ty.toFixed(1)}px; font-size: ${fontSize}px; font-family: serif; color: transparent; pointer-events: auto; white-space: nowrap;">${str}</span>`;
+            }
+          });
+
+          const pageCardHtml = `
+            <div class="page-sheet" id="page-${pageNum}" style="width: ${viewport.width}px; max-width: 100%; position: relative;">
+              <div class="page-sheet-num">Page ${pageNum}</div>
+              <img src="${bgDataUrl}" style="width: 100%; display: block;" alt="Page ${pageNum}">
+              <div class="text-layer" style="position: absolute; left: 0; top: 0; width: 100%; height: 100%; overflow: hidden; pointer-events: none;">
+                ${textSpansHtml}
+              </div>
+            </div>
+          `;
+
+          pagesHtmlList.push(pageCardHtml);
+
+          // Append to reader stream live
+          const tempDiv = document.createElement('div');
+          tempDiv.innerHTML = pageCardHtml;
+          readerStream.appendChild(tempDiv.firstElementChild);
+        }
+
+        // Build standalone HTML book document
+        fullHtmlBookContent = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${currentDocTitle}</title>
+  <style>
+    body { background-color: #0f172a; margin: 0; padding: 20px 0 60px; display: flex; flex-direction: column; align-items: center; gap: 24px; font-family: sans-serif; }
+    .page-sheet { position: relative; background: #fff; border-radius: 4px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); max-width: 96%; overflow: hidden; }
+    .page-sheet-num { position: absolute; top: 6px; right: 10px; font-size: 0.65rem; color: #64748b; font-weight: 700; z-index: 10; }
+  </style>
+</head>
+<body>
+  ${pagesHtmlList.join('\n')}
+</body>
+</html>`;
+
+        // Switch to reader view
+        viewUpload.classList.remove('active');
+        viewReader.classList.add('active');
+        btnBackHome.style.display = 'inline-flex';
+
+      } catch (err) {
+        alert('Error converting PDF: ' + err.message);
+      } finally {
+        convertingBox.style.display = 'none';
+      }
+    }
+
+    btnBackHome.addEventListener('click', () => {
+      viewReader.classList.remove('active');
+      viewUpload.classList.add('active');
+      btnBackHome.style.display = 'none';
+      filePicker.value = '';
+    });
+
+    // Save HTML file via AndroidBridge or browser download
+    btnSaveHtml.addEventListener('click', () => {
+      if (!fullHtmlBookContent) return;
+      const fileName = `${currentDocTitle}_HTML_Book.html`;
+
+      if (window.AndroidBridge && typeof window.AndroidBridge.saveHtmlBook === 'function') {
+        window.AndroidBridge.saveHtmlBook(fileName, fullHtmlBookContent);
+      } else {
+        const blob = new Blob([fullHtmlBookContent], { type: 'text/html;charset=utf-8' });
+        const link = document.createElement('a');
+        link.href = URLString = URL.createObjectURL(blob);
+        link.download = fileName;
+        link.click();
+      }
+    });
+
+    btnShareHtml.addEventListener('click', () => {
+      if (!fullHtmlBookContent) return;
+      const fileName = `${currentDocTitle}_HTML_Book.html`;
+      if (window.AndroidBridge && typeof window.AndroidBridge.shareHtmlBook === 'function') {
+        window.AndroidBridge.shareHtmlBook(fileName, fullHtmlBookContent);
+      } else if (navigator.share) {
+        const blob = new Blob([fullHtmlBookContent], { type: 'text/html' });
+        const file = new File([blob], fileName, { type: 'text/html' });
+        navigator.share({ title: currentDocTitle, files: [file] });
+      } else {
+        alert('Share not supported on this browser.');
+      }
+    });
+  </script>
+</body>
+</html>

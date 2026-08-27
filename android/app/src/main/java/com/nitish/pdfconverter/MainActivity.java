@@ -1,13 +1,14 @@
 package com.nitish.pdfconverter;
 
-import android.app.DownloadManager;
+import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
-import android.webkit.CookieManager;
-import android.webkit.URLUtil;
+import android.provider.MediaStore;
+import android.webkit.JavascriptInterface;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
@@ -16,13 +17,18 @@ import android.webkit.WebViewClient;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.content.FileProvider;
+
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 
 public class MainActivity extends AppCompatActivity {
 
     private WebView webView;
     private ValueCallback<Uri[]> uploadMessage;
     private static final int FILE_CHOOSER_RESULT_CODE = 100;
-    private static final String APP_URL = "http://10.0.2.2:8090"; // Localhost in Android emulator or replace with your hosted server domain
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -36,12 +42,17 @@ public class MainActivity extends AppCompatActivity {
         settings.setDomStorageEnabled(true);
         settings.setAllowFileAccess(true);
         settings.setAllowContentAccess(true);
+        settings.setAllowFileAccessFromFileURLs(true);
+        settings.setAllowUniversalAccessFromFileURLs(true);
         settings.setBuiltInZoomControls(true);
         settings.setDisplayZoomControls(false);
         settings.setLoadWithOverviewMode(true);
         settings.setUseWideViewPort(true);
 
         webView.setWebViewClient(new WebViewClient());
+
+        // Native Android Bridge for 100% Offline Save & Share
+        webView.addJavascriptInterface(new AndroidBridge(this), "AndroidBridge");
 
         // Handle File Chooser for PDF Uploads
         webView.setWebChromeClient(new WebChromeClient() {
@@ -60,33 +71,8 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        // Handle File Downloads (Single HTML Book & ZIP downloads)
-        webView.setDownloadListener((url, userAgent, contentDisposition, mimetype, contentLength) -> {
-            try {
-                DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url));
-                request.setMimeType(mimetype);
-                String cookies = CookieManager.getInstance().getCookie(url);
-                request.addRequestHeader("cookie", cookies);
-                request.addRequestHeader("User-Agent", userAgent);
-                request.setDescription("Downloading HTML Book / File...");
-                String filename = URLUtil.guessFileName(url, contentDisposition, mimetype);
-                request.setTitle(filename);
-                request.allowScanningByMediaScanner();
-                request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
-                request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, filename);
-
-                DownloadManager dm = (DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
-                if (dm != null) {
-                    dm.enqueue(request);
-                    Toast.makeText(getApplicationContext(), "Downloading " + filename + " to Downloads folder...", Toast.LENGTH_LONG).show();
-                }
-            } catch (Exception e) {
-                Intent i = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
-                startActivity(i);
-            }
-        });
-
-        webView.loadUrl(APP_URL);
+        // Load 100% Offline App from Local Assets
+        webView.loadUrl("file:///android_asset/index.html");
     }
 
     @Override
@@ -112,6 +98,75 @@ public class MainActivity extends AppCompatActivity {
             webView.goBack();
         } else {
             super.onBackPressed();
+        }
+    }
+
+    public static class AndroidBridge {
+        private final Context context;
+
+        public AndroidBridge(Context context) {
+            this.context = context;
+        }
+
+        @JavascriptInterface
+        public void saveHtmlBook(String filename, String htmlContent) {
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    ContentValues values = new ContentValues();
+                    values.put(MediaStore.MediaColumns.DISPLAY_NAME, filename);
+                    values.put(MediaStore.MediaColumns.MIME_TYPE, "text/html");
+                    values.put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS);
+
+                    Uri uri = context.getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
+                    if (uri != null) {
+                        try (OutputStream os = context.getContentResolver().openOutputStream(uri)) {
+                            if (os != null) {
+                                os.write(htmlContent.getBytes(StandardCharsets.UTF_8));
+                            }
+                        }
+                    }
+                } else {
+                    File downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+                    File file = new File(downloadsDir, filename);
+                    try (FileOutputStream fos = new FileOutputStream(file)) {
+                        fos.write(htmlContent.getBytes(StandardCharsets.UTF_8));
+                    }
+                }
+
+                ((MainActivity) context).runOnUiThread(() ->
+                    Toast.makeText(context, "✅ Book saved to Downloads: " + filename, Toast.LENGTH_LONG).show()
+                );
+            } catch (Exception e) {
+                ((MainActivity) context).runOnUiThread(() ->
+                    Toast.makeText(context, "❌ Error saving file: " + e.getMessage(), Toast.LENGTH_LONG).show()
+                );
+            }
+        }
+
+        @JavascriptInterface
+        public void shareHtmlBook(String filename, String htmlContent) {
+            try {
+                File cachePath = new File(context.getCacheDir(), "shared");
+                cachePath.mkdirs();
+                File file = new File(cachePath, filename);
+                try (FileOutputStream stream = new FileOutputStream(file)) {
+                    stream.write(htmlContent.getBytes(StandardCharsets.UTF_8));
+                }
+
+                Uri contentUri = FileProvider.getUriForFile(context, context.getPackageName() + ".fileprovider", file);
+                if (contentUri != null) {
+                    Intent shareIntent = new Intent();
+                    shareIntent.setAction(Intent.ACTION_SEND);
+                    shareIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                    shareIntent.setDataAndType(contentUri, "text/html");
+                    shareIntent.putExtra(Intent.EXTRA_STREAM, contentUri);
+                    context.startActivity(Intent.createChooser(shareIntent, "Share HTML Book"));
+                }
+            } catch (Exception e) {
+                ((MainActivity) context).runOnUiThread(() ->
+                    Toast.makeText(context, "❌ Share failed: " + e.getMessage(), Toast.LENGTH_SHORT).show()
+                );
+            }
         }
     }
 }
