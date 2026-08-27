@@ -1,0 +1,824 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PDF to HTML+CSS Converter Studio | Dual-View & Book Exporter</title>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&family=Inter:wght@400;500;600;700;800&family=Marck+Script&family=Montserrat:ital,wght@0,400;0,600;1,400&family=URW+Bookman:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <style>
+    :root {
+      --bg-dark: #090d16;
+      --bg-surface: #111827;
+      --bg-card: #1f293d;
+      --border-color: #2e3d5b;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent-cyan: #38bdf8;
+      --accent-pink: #ec4899;
+      --accent-green: #10b981;
+      --accent-gradient: linear-gradient(135deg, #ec4899, #8b5cf6, #3b82f6);
+      --green-gradient: linear-gradient(135deg, #059669, #10b981, #34d399);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+    }
+
+    /* Top App Navbar */
+    header.navbar {
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border-color);
+      height: 62px;
+      padding: 0 1.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      z-index: 100;
+    }
+
+    .brand-logo {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      font-weight: 800;
+      font-size: 1.05rem;
+      text-decoration: none;
+      color: #fff;
+    }
+
+    .brand-badge {
+      background: var(--accent-gradient);
+      padding: 0.35rem 0.65rem;
+      border-radius: 8px;
+      font-size: 0.82rem;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      box-shadow: 0 2px 10px rgba(236,72,153,0.3);
+    }
+
+    /* View Switchers */
+    .view-container { display: none; width: 100%; flex: 1; }
+    .view-container.active { display: flex; flex-direction: column; }
+
+    /* =================== UPLOAD VIEW =================== */
+    .hero-section {
+      max-width: 860px;
+      margin: 3rem auto;
+      padding: 0 1.5rem;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .hero-title {
+      font-size: 2.5rem;
+      font-weight: 800;
+      line-height: 1.2;
+      margin-bottom: 0.75rem;
+      background: linear-gradient(135deg, #ffffff 40%, #94a3b8);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .hero-desc {
+      font-size: 1.05rem;
+      color: var(--text-muted);
+      max-width: 620px;
+      margin-bottom: 2rem;
+      line-height: 1.5;
+    }
+
+    /* Drag and Drop Box */
+    .dropzone-box {
+      width: 100%;
+      border: 2px dashed var(--border-color);
+      background: var(--bg-surface);
+      border-radius: 16px;
+      padding: 3rem 2rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1rem;
+      position: relative;
+    }
+
+    .dropzone-box:hover, .dropzone-box.dragover {
+      border-color: var(--accent-cyan);
+      background: rgba(56,189,248,0.04);
+      transform: translateY(-2px);
+      box-shadow: 0 10px 30px rgba(56,189,248,0.1);
+    }
+
+    .drop-icon-circle {
+      width: 68px;
+      height: 68px;
+      border-radius: 50%;
+      background: rgba(56,189,248,0.1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--accent-cyan);
+    }
+
+    .upload-btn-custom {
+      background: var(--accent-gradient);
+      color: #fff;
+      font-weight: 700;
+      font-size: 0.95rem;
+      padding: 0.75rem 1.75rem;
+      border-radius: 10px;
+      border: none;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      box-shadow: 0 4px 15px rgba(236,72,153,0.3);
+      transition: transform 0.15s;
+    }
+
+    .upload-btn-custom:hover { transform: scale(1.03); }
+
+    /* Conversion Loading Bar */
+    .converting-card {
+      display: none;
+      width: 100%;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-color);
+      border-radius: 14px;
+      padding: 2rem;
+      margin-top: 1.5rem;
+      text-align: center;
+    }
+
+    .progress-bar-track {
+      width: 100%;
+      height: 8px;
+      background: var(--bg-card);
+      border-radius: 4px;
+      overflow: hidden;
+      margin: 1.25rem 0 0.75rem;
+      position: relative;
+    }
+
+    .progress-bar-fill {
+      width: 0%;
+      height: 100%;
+      background: var(--accent-gradient);
+      border-radius: 4px;
+      transition: width 0.3s ease;
+      animation: indeterminate 1.8s infinite linear;
+    }
+
+    @keyframes indeterminate {
+      0% { transform: translateX(-100%); width: 40%; }
+      50% { transform: translateX(50%); width: 60%; }
+      100% { transform: translateX(200%); width: 40%; }
+    }
+
+    /* Feature Grid */
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1.25rem;
+      margin-top: 3rem;
+      width: 100%;
+    }
+
+    .feature-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 1.25rem;
+      text-align: left;
+    }
+
+    .feature-card h4 {
+      font-size: 0.95rem;
+      font-weight: 700;
+      margin: 0.6rem 0 0.3rem;
+      color: #fff;
+    }
+
+    .feature-card p {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      line-height: 1.4;
+    }
+
+    /* =================== STUDIO DUAL-VIEW =================== */
+    .studio-header {
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border-color);
+      height: 56px;
+      padding: 0 1.25rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+    }
+
+    .doc-info-badge {
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      max-width: 220px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .studio-nav-bar {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      background: var(--bg-dark);
+      padding: 0.2rem 0.5rem;
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+    }
+
+    .nav-btn {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+      width: 30px;
+      height: 30px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .nav-btn:hover { background: var(--accent-cyan); color: #fff; border-color: var(--accent-cyan); }
+
+    .studio-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .btn-action {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      color: #fff;
+      padding: 0.45rem 0.8rem;
+      border-radius: 8px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      text-decoration: none;
+      transition: all 0.15s;
+    }
+
+    .btn-action:hover {
+      background: var(--border-color);
+      transform: translateY(-1px);
+    }
+
+    /* Standalone Book Reader Button (Primary Green Highlight) */
+    .btn-action-standalone {
+      background: var(--green-gradient);
+      color: #fff;
+      border: none;
+      font-weight: 700;
+      box-shadow: 0 2px 10px rgba(16,185,129,0.35);
+    }
+
+    .btn-action-standalone:hover {
+      transform: translateY(-1px) scale(1.02);
+      box-shadow: 0 4px 15px rgba(16,185,129,0.5);
+    }
+
+    .btn-action-primary {
+      background: var(--accent-gradient);
+      border: none;
+      box-shadow: 0 2px 8px rgba(236,72,153,0.3);
+    }
+
+    /* Workspace */
+    .studio-workspace {
+      flex: 1;
+      display: flex;
+      position: relative;
+      overflow: hidden;
+      background: #030712;
+    }
+
+    .studio-pane {
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      transition: width 0.05s ease-out;
+    }
+
+    .pane-left { width: 50%; border-right: 1px solid var(--border-color); }
+    .pane-right { flex: 1; }
+
+    .pane-titlebar {
+      background: var(--bg-surface);
+      padding: 0.4rem 1rem;
+      border-bottom: 1px solid var(--border-color);
+      font-size: 0.8rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: var(--text-muted);
+    }
+
+    .pane-scroll-area {
+      flex: 1;
+      overflow: auto;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 2rem 1.5rem;
+    }
+
+    .page-scale-wrapper {
+      transform-origin: top center;
+      box-shadow: 0 15px 35px rgba(0,0,0,0.5);
+      border-radius: 4px;
+      background: #ffffff;
+      margin-bottom: 2rem;
+    }
+
+    .pdf-page-img {
+      display: block;
+      width: 100%;
+      height: auto;
+      user-select: none;
+      pointer-events: none;
+    }
+
+    .pdf-page-html-content {
+      position: relative;
+      background-color: #ffffff;
+      margin: 0 auto;
+      overflow: hidden;
+      user-select: text;
+    }
+
+    .text-line {
+      position: absolute;
+      white-space: nowrap;
+      pointer-events: auto;
+      cursor: text;
+      transform-origin: left center;
+    }
+
+    /* Splitter */
+    .split-divider {
+      width: 10px;
+      background: var(--bg-surface);
+      border-left: 1px solid var(--border-color);
+      border-right: 1px solid var(--border-color);
+      cursor: col-resize;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 50;
+    }
+    .split-divider:hover, .split-divider.dragging { background: var(--accent-cyan); }
+    .split-grip { width: 4px; height: 30px; border-radius: 2px; background: var(--border-color); }
+
+    /* Modals */
+    .modal-overlay {
+      position: fixed;
+      top: 0; left: 0; width: 100vw; height: 100vh;
+      background: rgba(0,0,0,0.75);
+      backdrop-filter: blur(5px);
+      z-index: 300;
+      display: flex; align-items: center; justify-content: center;
+      opacity: 0; pointer-events: none; transition: opacity 0.2s;
+    }
+    .modal-overlay.open { opacity: 1; pointer-events: auto; }
+    .modal-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      width: 90%; max-width: 800px; max-height: 85vh;
+      display: flex; flex-direction: column; overflow: hidden;
+      box-shadow: 0 25px 50px rgba(0,0,0,0.5);
+    }
+    .modal-header {
+      padding: 1rem 1.25rem;
+      border-bottom: 1px solid var(--border-color);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .modal-body { padding: 1.25rem; overflow-y: auto; flex: 1; }
+    .code-box {
+      background: #060911; color: #38bdf8;
+      font-family: 'Consolas', monospace; font-size: 0.82rem;
+      padding: 1rem; border-radius: 8px; border: 1px solid var(--border-color);
+      white-space: pre-wrap; user-select: text; max-height: 400px; overflow: auto;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Navbar -->
+  <header class="navbar">
+    <a href="#" class="brand-logo" id="brand-home-btn">
+      <div class="brand-badge">
+        <i data-lucide="sparkles"></i> PDF &rarr; HTML STUDIO
+      </div>
+      <span>High-Fidelity Web Exporter</span>
+    </a>
+    <div style="display: flex; gap: 0.75rem; align-items: center;">
+      <button class="btn-action" id="btn-switch-upload" style="display: none;">
+        <i data-lucide="upload"></i> Convert Another PDF
+      </button>
+    </div>
+  </header>
+
+  <!-- VIEW 1: Upload & Process Section -->
+  <div class="view-container active" id="view-upload">
+    <section class="hero-section">
+      <h1 class="hero-title">PDF to Complete HTML Book Converter</h1>
+      <p class="hero-desc">
+        PDF upload karein aur 1-Click me poori book ka <b>Standalone HTML Book Reader (.html)</b> download karein jise double-click karke kisi bhi browser me offline padh sakein!
+      </p>
+
+      <!-- Dropzone -->
+      <div class="dropzone-box" id="dropzone">
+        <input type="file" id="pdf-file-input" accept=".pdf" style="display: none;">
+        <div class="drop-icon-circle">
+          <i data-lucide="file-up" style="width: 34px; height: 34px;"></i>
+        </div>
+        <div>
+          <h3 style="font-size: 1.15rem; font-weight: 700; margin-bottom: 0.3rem;">Drag & Drop your Book PDF file here</h3>
+          <p style="color: var(--text-muted); font-size: 0.85rem;">Supports all NCERT textbooks, novels, notes, slides (Up to 200MB)</p>
+        </div>
+        <button class="upload-btn-custom" id="btn-browse-file">
+          <i data-lucide="folder-open"></i> Browse Book PDF
+        </button>
+      </div>
+
+      <!-- Processing Progress Box -->
+      <div class="converting-card" id="converting-card">
+        <div style="display: flex; align-items: center; justify-content: center; gap: 0.5rem; font-weight: 700; font-size: 1.05rem;">
+          <i data-lucide="loader-2" class="spin" style="color: var(--accent-cyan); animation: spin 1s linear infinite;"></i>
+          <span id="convert-status-text">Converting PDF to HTML & CSS...</span>
+        </div>
+        <div class="progress-bar-track">
+          <div class="progress-bar-fill" id="progress-bar-fill"></div>
+        </div>
+        <p style="font-size: 0.8rem; color: var(--text-muted);">Packaging standalone reader, extracting sRGB images, mapping typography...</p>
+      </div>
+
+      <!-- Feature Cards -->
+      <div class="feature-grid">
+        <div class="feature-card">
+          <i data-lucide="book-marked" style="color: #10b981;"></i>
+          <h4>Standalone HTML Book</h4>
+          <p>Download 1 single HTML file with page-flipper, slider, search, and reading themes built-in.</p>
+        </div>
+        <div class="feature-card">
+          <i data-lucide="type" style="color: var(--accent-pink);"></i>
+          <h4>Precision Typography</h4>
+          <p>Exact font sizes, weights, hex colors, and tracking auto-fit with zero text clipping.</p>
+        </div>
+        <div class="feature-card">
+          <i data-lucide="package" style="color: var(--accent-cyan);"></i>
+          <h4>Full ZIP Package</h4>
+          <p>Also export all individual HTML pages, CSS files, and images in a clean ZIP bundle.</p>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- VIEW 2: Dual-View Studio Section -->
+  <div class="view-container" id="view-studio">
+    <!-- Studio Header -->
+    <div class="studio-header">
+      <div class="doc-info-badge">
+        <i data-lucide="book" style="color: var(--accent-cyan);"></i>
+        <span id="studio-doc-title">Document.pdf</span>
+      </div>
+
+      <!-- Nav -->
+      <div class="studio-nav-bar">
+        <button class="nav-btn" id="s-btn-prev" title="Previous Page">
+          <i data-lucide="chevron-left"></i>
+        </button>
+        <span style="font-size: 0.82rem; font-weight: 600; padding: 0 0.4rem;">
+          Page <input type="number" id="s-page-input" value="1" min="1" max="1" style="width: 40px; background: transparent; border: 1px solid var(--border-color); color: #fff; text-align: center; border-radius: 4px; font-weight: 700;"> <span id="s-total-pages">/ 1</span>
+        </span>
+        <button class="nav-btn" id="s-btn-next" title="Next Page">
+          <i data-lucide="chevron-right"></i>
+        </button>
+      </div>
+
+      <!-- Action Buttons ("Download kar paaye") -->
+      <div class="studio-actions">
+        <!-- 1. STANDALONE SINGLE-FILE BOOK READER DOWNLOAD -->
+        <a href="#" class="btn-action btn-action-standalone" id="s-btn-download-standalone" title="Download 1 Single HTML Book Reader file (Double click & Read anywhere)">
+          <i data-lucide="book-open"></i> Download HTML Book (.html)
+        </a>
+        <!-- 2. FULL ZIP PACKAGE -->
+        <a href="#" class="btn-action btn-action-primary" id="s-btn-download-zip" title="Download Complete Bundle (.zip)">
+          <i data-lucide="download"></i> Download Full ZIP
+        </a>
+        <!-- 3. COPY HTML CODE -->
+        <button class="btn-action" id="s-btn-code" title="View Source Code">
+          <i data-lucide="code"></i> Copy HTML
+        </button>
+      </div>
+    </div>
+
+    <!-- Main Dual View Workspace -->
+    <main class="studio-workspace" id="studio-workspace">
+      <!-- Left: PDF View -->
+      <section class="studio-pane pane-left" id="s-pane-pdf">
+        <div class="pane-titlebar">
+          <span><i data-lucide="file-text"></i> Original PDF View</span>
+          <span style="font-size: 0.72rem; color: var(--accent-cyan); font-weight: 700;">150 DPI VECTOR RENDER</span>
+        </div>
+        <div class="pane-scroll-area">
+          <div class="page-scale-wrapper" id="s-pdf-wrapper">
+            <img src="" alt="PDF Render" class="pdf-page-img" id="s-pdf-img">
+          </div>
+        </div>
+      </section>
+
+      <!-- Resizer Splitter -->
+      <div class="split-divider" id="s-split-divider">
+        <div class="split-grip"></div>
+      </div>
+
+      <!-- Right: HTML View -->
+      <section class="studio-pane pane-right" id="s-pane-html">
+        <div class="pane-titlebar">
+          <span><i data-lucide="code-xml"></i> Converted HTML & CSS Layout</span>
+          <span style="font-size: 0.72rem; color: var(--accent-pink); font-weight: 700;">1:1 EXACT REPLICA</span>
+        </div>
+        <div class="pane-scroll-area">
+          <div class="page-scale-wrapper" id="s-html-wrapper">
+            <!-- Injected dynamically -->
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- HTML Source Code Modal -->
+  <div class="modal-overlay" id="code-modal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div style="display: flex; align-items: center; gap: 0.5rem; font-weight: 700;">
+          <i data-lucide="code" style="color: var(--accent-pink);"></i>
+          <span id="code-modal-title">HTML Code</span>
+        </div>
+        <button class="nav-btn" id="btn-close-code"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body">
+        <div style="display: flex; justify-content: flex-end; margin-bottom: 0.75rem;">
+          <button class="btn-action" id="btn-modal-copy"><i data-lucide="copy"></i> Copy to Clipboard</button>
+        </div>
+        <pre class="code-box" id="code-preview"></pre>
+      </div>
+    </div>
+  </div>
+
+  <style>
+    @keyframes spin { 100% { transform: rotate(360deg); } }
+  </style>
+
+  <!-- JavaScript -->
+  <script>
+    // State
+    let currentSession = null;
+    let currentPage = 1;
+    let totalPages = 1;
+
+    // DOM
+    const viewUpload = document.getElementById('view-upload');
+    const viewStudio = document.getElementById('view-studio');
+    const dropzone = document.getElementById('dropzone');
+    const fileInput = document.getElementById('pdf-file-input');
+    const btnBrowse = document.getElementById('btn-browse-file');
+    const convertingCard = document.getElementById('converting-card');
+    const convertStatusText = document.getElementById('convert-status-text');
+    const btnSwitchUpload = document.getElementById('btn-switch-upload');
+
+    // Studio DOM
+    const studioDocTitle = document.getElementById('studio-doc-title');
+    const sPageInput = document.getElementById('s-page-input');
+    const sTotalPages = document.getElementById('s-total-pages');
+    const sPdfImg = document.getElementById('s-pdf-img');
+    const sHtmlWrapper = document.getElementById('s-html-wrapper');
+    const sBtnPrev = document.getElementById('s-btn-prev');
+    const sBtnNext = document.getElementById('s-btn-next');
+    const sBtnDownloadStandalone = document.getElementById('s-btn-download-standalone');
+    const sBtnDownloadZip = document.getElementById('s-btn-download-zip');
+    const sBtnCode = document.getElementById('s-btn-code');
+
+    // File selection
+    btnBrowse.addEventListener('click', (e) => { e.stopPropagation(); fileInput.click(); });
+    dropzone.addEventListener('click', () => fileInput.click());
+
+    dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('dragover'); });
+    dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
+    dropzone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropzone.classList.remove('dragover');
+      if (e.dataTransfer.files.length > 0) {
+        handleFileUpload(e.dataTransfer.files[0]);
+      }
+    });
+
+    fileInput.addEventListener('change', (e) => {
+      if (e.target.files.length > 0) {
+        handleFileUpload(e.target.files[0]);
+      }
+    });
+
+    async function handleFileUpload(file) {
+      if (!file.name.toLowerCase().endsWith('.pdf')) {
+        alert('Please select a valid PDF file.');
+        return;
+      }
+
+      convertingCard.style.display = 'block';
+      convertStatusText.textContent = `Converting "${file.name}" to HTML/CSS Book...`;
+
+      const formData = new FormData();
+      formData.append('pdf_file', file);
+
+      try {
+        const response = await fetch('/api/convert', {
+          method: 'POST',
+          body: formData
+        });
+
+        const res = await response.json();
+        if (!response.ok || res.error) {
+          throw new Error(res.error || 'Conversion failed');
+        }
+
+        currentSession = res;
+        totalPages = res.totalPages;
+        currentPage = 1;
+
+        openStudio(res);
+      } catch (err) {
+        alert('Error during conversion: ' + err.message);
+      } finally {
+        convertingCard.style.display = 'none';
+      }
+    }
+
+    function openStudio(session) {
+      viewUpload.classList.remove('active');
+      viewStudio.classList.add('active');
+      btnSwitchUpload.style.display = 'inline-flex';
+
+      studioDocTitle.textContent = session.title;
+      sTotalPages.textContent = `/ ${totalPages}`;
+      sPageInput.max = totalPages;
+
+      sBtnDownloadStandalone.href = `/api/session/${session.sessionId}/download/standalone`;
+      sBtnDownloadZip.href = `/api/session/${session.sessionId}/download/zip`;
+
+      renderStudioPage(1);
+      lucide.createIcons();
+    }
+
+    function adjustStudioLineScales() {
+      sHtmlWrapper.querySelectorAll('.text-line').forEach(el => {
+        const targetWidth = parseFloat(el.getAttribute('data-target-width'));
+        if (targetWidth && el.scrollWidth > targetWidth + 0.5) {
+          const scale = targetWidth / el.scrollWidth;
+          el.style.transform = `scaleX(${scale})`;
+          el.style.transformOrigin = 'left center';
+        }
+      });
+    }
+
+    function renderStudioPage(pageNum) {
+      if (!currentSession) return;
+      if (pageNum < 1) pageNum = 1;
+      if (pageNum > totalPages) pageNum = totalPages;
+      currentPage = pageNum;
+
+      sPageInput.value = pageNum;
+      const pageInfo = currentSession.data.pages[pageNum - 1];
+
+      // Update PDF Side
+      sPdfImg.src = `/outputs/${currentSession.sessionId}/${pageInfo.pdfImage}`;
+
+      // Update HTML Side
+      let snippet = pageInfo.htmlSnippet;
+      snippet = snippet.replaceAll('src="assets/images/', `src="/outputs/${currentSession.sessionId}/assets/images/`);
+      sHtmlWrapper.innerHTML = snippet;
+
+      // Fit text lines
+      adjustStudioLineScales();
+    }
+
+    sBtnPrev.addEventListener('click', () => renderStudioPage(currentPage - 1));
+    sBtnNext.addEventListener('click', () => renderStudioPage(currentPage + 1));
+    sPageInput.addEventListener('change', (e) => renderStudioPage(parseInt(e.target.value, 10)));
+
+    // Switch back to upload
+    btnSwitchUpload.addEventListener('click', () => {
+      viewStudio.classList.remove('active');
+      viewUpload.classList.add('active');
+      btnSwitchUpload.style.display = 'none';
+      fileInput.value = '';
+    });
+
+    document.getElementById('brand-home-btn').addEventListener('click', (e) => {
+      e.preventDefault();
+      btnSwitchUpload.click();
+    });
+
+    // Code Modal
+    const codeModal = document.getElementById('code-modal');
+    const codePreview = document.getElementById('code-preview');
+    const codeModalTitle = document.getElementById('code-modal-title');
+
+    sBtnCode.addEventListener('click', () => {
+      if (!currentSession) return;
+      const pageInfo = currentSession.data.pages[currentPage - 1];
+      codeModalTitle.textContent = `HTML Code (Page ${currentPage})`;
+      codePreview.textContent = pageInfo.htmlSnippet;
+      codeModal.classList.add('open');
+    });
+
+    document.getElementById('btn-close-code').addEventListener('click', () => codeModal.classList.remove('open'));
+    document.getElementById('btn-modal-copy').addEventListener('click', () => {
+      navigator.clipboard.writeText(codePreview.textContent).then(() => {
+        alert('HTML Code copied to clipboard!');
+      });
+    });
+
+    // Draggable Splitter
+    const splitDivider = document.getElementById('s-split-divider');
+    const panePdf = document.getElementById('s-pane-pdf');
+    const workspace = document.getElementById('studio-workspace');
+    let isDragging = false;
+
+    splitDivider.addEventListener('mousedown', () => {
+      isDragging = true;
+      splitDivider.classList.add('dragging');
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (!isDragging) return;
+      const rect = workspace.getBoundingClientRect();
+      const pct = Math.max(15, Math.min(85, ((e.clientX - rect.left) / rect.width) * 100));
+      panePdf.style.width = `${pct}%`;
+    });
+
+    window.addEventListener('mouseup', () => {
+      if (isDragging) {
+        isDragging = false;
+        splitDivider.classList.remove('dragging');
+      }
+    });
+
+    // Keyboard navigation
+    window.addEventListener('keydown', (e) => {
+      if (e.target.tagName === 'INPUT') return;
+      if (viewStudio.classList.contains('active')) {
+        if (e.key === 'ArrowRight') renderStudioPage(currentPage + 1);
+        if (e.key === 'ArrowLeft') renderStudioPage(currentPage - 1);
+        if (e.key === 'Escape') codeModal.classList.remove('open');
+      }
+    });
+
+    // Initialize Lucide icons
+    document.addEventListener('DOMContentLoaded', () => {
+      lucide.createIcons();
+    });
+  </script>
+</body>
+</html>
