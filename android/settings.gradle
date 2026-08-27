@@ -1,0 +1,2 @@
+rootProject.name = "PDF_to_HTML_Converter"
+include ':app'

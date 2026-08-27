@@ -1,0 +1,21 @@
+{
+  "name": "PDF to HTML Book Studio",
+  "short_name": "PDF to HTML",
+  "description": "Convert Any PDF to 100% Matching HTML & CSS Books",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#090d16",
+  "theme_color": "#ec4899",
+  "icons": [
+    {
+      "src": "https://img.icons8.com/fluent/192/book.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "https://img.icons8.com/fluent/512/book.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
