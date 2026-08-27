@@ -3,6 +3,9 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# Cloudflare binary
+cloudflared.exe
+
 # Temporary user uploads and generated outputs
 uploads/*
 !uploads/.gitkeep
