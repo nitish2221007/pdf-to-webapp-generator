@@ -1,0 +1,7 @@
+<resources>
+    <style name="Theme.PDFConverter" parent="Theme.AppCompat.Light.NoActionBar">
+        <item name="colorPrimary">#ec4899</item>
+        <item name="colorPrimaryDark">#090d16</item>
+        <item name="colorAccent">#38bdf8</item>
+    </style>
+</resources>
