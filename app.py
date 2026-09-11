@@ -1,13 +1,26 @@
 import os
+import sys
 import uuid
 import json
+import threading
+import webbrowser
+import time
 from flask import Flask, render_template, request, jsonify, send_file, send_from_directory
 from werkzeug.utils import secure_filename
 from converter_engine import convert_pdf_to_html
 
-app = Flask(__name__)
+# Determine base path for templates & static (PyInstaller compatibility)
+if getattr(sys, 'frozen', False):
+    BUNDLE_DIR = sys._MEIPASS
+    BASE_DIR = os.path.dirname(sys.executable)
+else:
+    BUNDLE_DIR = os.path.dirname(os.path.abspath(__file__))
+    BASE_DIR = BUNDLE_DIR
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+app = Flask(__name__,
+            template_folder=os.path.join(BUNDLE_DIR, 'templates'),
+            static_folder=os.path.join(BUNDLE_DIR, 'static'))
+
 UPLOAD_FOLDER = os.path.join(BASE_DIR, 'uploads')
 OUTPUT_FOLDER = os.path.join(BASE_DIR, 'outputs')
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -19,6 +32,26 @@ app.config['MAX_CONTENT_LENGTH'] = 200 * 1024 * 1024  # 200 MB max upload
 
 # Store session metadata in memory
 SESSIONS = {}
+
+@app.before_request
+def handle_options_preflight():
+    if request.method == 'OPTIONS':
+        res = app.make_default_options_response()
+        res.headers['Access-Control-Allow-Origin'] = '*'
+        res.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS, PUT, DELETE'
+        res.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Requested-With'
+        return res
+
+@app.after_request
+def add_cors_headers(response):
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS, PUT, DELETE'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Requested-With'
+    return response
+
+@app.route('/api/health')
+def health_check():
+    return jsonify({'status': 'ok', 'service': 'PDF to HTML Converter Backend', 'version': '2.0'})
 
 @app.route('/')
 def index():
@@ -116,10 +149,20 @@ def serve_output_file(session_id, filepath):
     session_dir = os.path.join(OUTPUT_FOLDER, session_id)
     return send_from_directory(session_dir, filepath)
 
+def open_browser(port):
+    time.sleep(1.5)
+    try:
+        webbrowser.open(f"http://localhost:{port}")
+    except Exception:
+        pass
+
 if __name__ == '__main__':
-    port = 8090
+    port = int(os.environ.get('PORT', 7860))
     print("=" * 70)
     print("  [PDF to HTML/CSS Converter WebApp Studio Started]")
-    print(f"  Access URL: http://localhost:{port}")
+    print(f"  Access URL: http://0.0.0.0:{port}")
     print("=" * 70)
+    if not os.environ.get('PORT'):
+        threading.Thread(target=open_browser, args=(port,), daemon=True).start()
     app.run(host='0.0.0.0', port=port, debug=False)
+

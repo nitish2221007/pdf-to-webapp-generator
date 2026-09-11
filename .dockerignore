@@ -1,0 +1,14 @@
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.git
+.github
+android/.gradle
+android/build
+build
+dist
+uploads/*
+!uploads/.gitkeep
+outputs/*
+!outputs/.gitkeep

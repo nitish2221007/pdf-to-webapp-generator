@@ -1,3 +1,13 @@
+---
+title: PDF to WebApp Studio
+emoji: 📚
+colorFrom: blue
+colorTo: purple
+sdk: docker
+app_port: 7860
+pinned: false
+---
+
 # 📚 PDF to HTML+CSS Converter Studio (Universal WebApp & Mobile App)
 
 > Convert **ANY PDF** (Textbooks, Books, Notes, Research Papers, Slides, Reports) into **100% Matching HTML & CSS** with Live Dual-View Studio, Standalone 1-File HTML Book Exporter, and Continuous Scroll Reading!

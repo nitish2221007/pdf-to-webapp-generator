@@ -163,6 +163,22 @@ def build_continuous_scroll_html(doc_title, total_pages, pages_cards_html):
       transform: scale(1.05);
     }}
 
+    .btn-icon.active {{
+      background: var(--accent) !important;
+      color: #0f172a !important;
+      font-weight: 700 !important;
+    }}
+
+    .btn-icon-pill {{
+      width: auto !important;
+      padding: 0 0.75rem !important;
+      border-radius: 20px !important;
+      font-size: 0.8rem !important;
+      gap: 0.35rem !important;
+      font-weight: 600 !important;
+      display: inline-flex !important;
+    }}
+
     /* Main Continuous Book Container */
     .book-pages-container {{
       display: flex;
@@ -239,6 +255,14 @@ def build_continuous_scroll_html(doc_title, total_pages, pages_cards_html):
     <input type="number" id="page-jump-input" min="1" max="{total_pages}" value="1" 
       style="width: 46px; height: 26px; border-radius: 6px; border: 1px solid var(--bar-border); background: rgba(0,0,0,0.2); color: var(--text-main); text-align: center; font-weight: 700; font-size: 0.8rem; outline: none;" title="Enter page number to jump">
 
+    <!-- Mode: Full PC Width Toggle -->
+    <button class="btn-icon btn-icon-pill active" id="btn-full-width" title="Toggle Full PC Width (Real Website View)">
+      🖥️ <span>Full PC</span>
+    </button>
+
+    <!-- Fullscreen Toggle -->
+    <button class="btn-icon" id="btn-fullscreen" title="Fullscreen Mode (F11)">⛶</button>
+
     <!-- Theme Toggle -->
     <button class="btn-icon" id="theme-btn" title="Toggle Theme (Dark / Light / Sepia)">🌓</button>
     <!-- Scroll to Top -->
@@ -260,6 +284,43 @@ def build_continuous_scroll_html(doc_title, total_pages, pages_cards_html):
           el.style.transformOrigin = 'left center';
         }}
       }});
+    }}
+
+    let isFullWidthMode = true;
+
+    function applyScaling() {{
+      const sheets = document.querySelectorAll('.book-page-sheet');
+      const winWidth = window.innerWidth;
+      
+      sheets.forEach(sheet => {{
+        const origWidthPt = parseFloat(sheet.getAttribute('data-width') || sheet.style.width);
+        const origHeightPt = parseFloat(sheet.getAttribute('data-height') || sheet.style.height);
+        const origWidthPx = origWidthPt * (96 / 72);
+        const origHeightPx = origHeightPt * (96 / 72);
+        const container = sheet.closest('.book-page-sheet-container');
+        
+        if (isFullWidthMode) {{
+          const targetWidth = Math.min(winWidth - 48, 1440);
+          if (targetWidth > 320) {{
+            const scale = targetWidth / origWidthPx;
+            sheet.style.transform = `scale(${{scale}})`;
+            sheet.style.transformOrigin = 'top center';
+            sheet.style.boxShadow = '0 20px 50px rgba(0,0,0,0.35)';
+            if (container) {{
+              container.style.height = `${{origHeightPx * scale + 24}}px`;
+            }}
+          }}
+        }} else {{
+          sheet.style.transform = '';
+          sheet.style.transformOrigin = '';
+          sheet.style.boxShadow = '';
+          if (container) {{
+            container.style.height = '';
+          }}
+        }}
+      }});
+      
+      adjustLineScales();
     }}
 
     const pages = document.querySelectorAll('.book-page-sheet');
@@ -299,8 +360,30 @@ def build_continuous_scroll_html(doc_title, total_pages, pages_cards_html):
       document.body.setAttribute('data-theme', curTheme);
     }});
 
+    const btnFullWidth = document.getElementById('btn-full-width');
+    if (btnFullWidth) {{
+      btnFullWidth.addEventListener('click', () => {{
+        isFullWidthMode = !isFullWidthMode;
+        btnFullWidth.classList.toggle('active', isFullWidthMode);
+        applyScaling();
+      }});
+    }}
+
+    const btnFullscreen = document.getElementById('btn-fullscreen');
+    if (btnFullscreen) {{
+      btnFullscreen.addEventListener('click', () => {{
+        if (!document.fullscreenElement) {{
+          document.documentElement.requestFullscreen().catch(() => {{}});
+        }} else {{
+          document.exitFullscreen().catch(() => {{}});
+        }}
+      }});
+    }}
+
+    window.addEventListener('resize', applyScaling);
     window.addEventListener('DOMContentLoaded', () => {{
       adjustLineScales();
+      setTimeout(applyScaling, 100);
     }});
   </script>
 </body>
@@ -542,10 +625,12 @@ def convert_pdf_to_html(pdf_path, output_dir, progress_callback=None):
 </div>"""
 
         page_card = f"""
-        <div class="book-page-sheet" id="page-{page_num}" data-page="{page_num}" style="width: {width}pt; height: {height}pt;">
-          <div class="page-number-tag">Page {page_num}</div>
-          <div class="pdf-page-html-content" style="position: relative; width: {width}pt; height: {height}pt;">
-            {chr(10).join(html_elements_b64)}
+        <div class="book-page-sheet-container" style="display: flex; justify-content: center; width: 100%;">
+          <div class="book-page-sheet" id="page-{page_num}" data-page="{page_num}" data-width="{width}" data-height="{height}" style="width: {width}pt; height: {height}pt; transform-origin: top center; transition: transform 0.15s ease;">
+            <div class="page-number-tag">Page {page_num}</div>
+            <div class="pdf-page-html-content" style="position: relative; width: {width}pt; height: {height}pt;">
+              {chr(10).join(html_elements_b64)}
+            </div>
           </div>
         </div>
         """

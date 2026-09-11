@@ -24,3 +24,12 @@ ENV/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Build artifacts
+build/
+dist/
+*.spec
+.gradle/
+android/.gradle/
+android/app/build/
+
