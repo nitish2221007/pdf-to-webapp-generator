@@ -47,14 +47,108 @@ def get_font_fallback(font_name):
     else:
         return "'URW Bookman', 'Bookman Old Style', 'Georgia', serif"
 
+def build_page_article_html(page, extracted_images, page_num, total_pages, use_base64=True):
+    width, height = round(page.rect.width, 2), round(page.rect.height, 2)
+    text_dict = page.get_text('dict', sort=True)
+    raw_blocks = text_dict.get('blocks', [])
+    
+    html_elements = []
+    sorted_imgs = sorted(extracted_images, key=lambda img: img.get('top', 0))
+    img_idx = 0
+    
+    valid_blocks = []
+    for b in raw_blocks:
+        if b.get('type') != 0:
+            continue
+        bx0, by0, bx1, by1 = b.get('bbox', [0,0,0,0])
+        lines = b.get('lines', [])
+        txt = ' '.join([''.join([clean_text(s['text']) for s in l['spans']]) for l in lines]).strip()
+        if not txt:
+            continue
+        if (by1 >= height - 28 or by0 <= 22) and (len(txt) < 16 or txt.isdigit()):
+            continue
+        valid_blocks.append((b, bx0, by0, bx1, by1, txt))
+        
+    left_count = sum(1 for item in valid_blocks if (item[3] - item[1]) < width * 0.55 and (item[1]+item[3])/2 < width * 0.50)
+    right_count = sum(1 for item in valid_blocks if (item[3] - item[1]) < width * 0.55 and (item[1]+item[3])/2 >= width * 0.50)
+    has_two_cols = (left_count >= 2 and right_count >= 2)
+
+    def get_sort_key(item):
+        b, bx0, by0, bx1, by1, txt = item
+        cx = (bx0 + bx1) / 2
+        is_wide = (bx1 - bx0) > (width * 0.60)
+        if is_wide and by0 < height * 0.25:
+            col = 0
+        elif is_wide:
+            col = 1
+        elif cx < width * 0.50:
+            col = 2
+        else:
+            col = 3
+        return (col, round(by0, 1), round(bx0, 1))
+
+    if has_two_cols:
+        valid_blocks.sort(key=get_sort_key)
+    else:
+        valid_blocks.sort(key=lambda item: (round(item[2], 1), round(item[1], 1)))
+
+    for item in valid_blocks:
+        b, bx0, by0, bx1, by1, block_text = item
+        lines = b.get('lines', [])
+        
+        while img_idx < len(sorted_imgs) and sorted_imgs[img_idx].get('top', 0) <= by0:
+            img = sorted_imgs[img_idx]
+            src = img.get('base64') if use_base64 and img.get('base64') else img.get('relPath', '')
+            if src and img.get('width', 0) >= 30 and img.get('height', 0) >= 30:
+                html_elements.append(f'<div class="article-media-wrap"><img src="{src}" alt="Illustration" class="article-img" loading="lazy"></div>')
+            img_idx += 1
+            
+        max_size = 0
+        is_bold = False
+        for l in lines:
+            for s in l.get('spans', []):
+                if s.get('size', 0) > max_size:
+                    max_size = s.get('size', 0)
+                if 'bold' in s.get('font', '').lower() or 'demi' in s.get('font', '').lower():
+                    is_bold = True
+                    
+        clean_para = html.escape(block_text)
+        if max_size >= 24:
+            html_elements.append(f'<h1 class="article-title">{clean_para}</h1>')
+        elif max_size >= 16:
+            html_elements.append(f'<h2 class="article-heading-2">{clean_para}</h2>')
+        elif max_size >= 12.5 and (is_bold or len(clean_para) < 80):
+            html_elements.append(f'<h3 class="article-heading-3">{clean_para}</h3>')
+        elif (bx1 - bx0 < width * 0.38) and len(clean_para) < 250:
+            html_elements.append(f'<aside class="article-callout"><p>{clean_para}</p></aside>')
+        else:
+            html_elements.append(f'<p class="article-para">{clean_para}</p>')
+
+    while img_idx < len(sorted_imgs):
+        img = sorted_imgs[img_idx]
+        src = img.get('base64') if use_base64 and img.get('base64') else img.get('relPath', '')
+        if src and img.get('width', 0) >= 30 and img.get('height', 0) >= 30:
+            html_elements.append(f'<div class="article-media-wrap"><img src="{src}" alt="Illustration" class="article-img" loading="lazy"></div>')
+        img_idx += 1
+        
+    content_html = '\n'.join(html_elements)
+    
+    return f"""<article class="article-page-card" id="article-page-{page_num}" data-page="{page_num}">
+  <div class="article-page-badge">Page {page_num} of {total_pages}</div>
+  <div class="article-body">
+    {content_html}
+  </div>
+</article>"""
+
 def generate_continuous_scroll_book(pdf_path, output_html_path):
     doc = fitz.open(pdf_path)
     total_pages = len(doc)
     doc_title = doc.metadata.get('title') or os.path.splitext(os.path.basename(pdf_path))[0]
     
-    print(f"Generating Continuous Scroll HTML Book for '{doc_title}' ({total_pages} pages)...")
+    print(f"Generating Continuous Scroll & Web Article HTML Book for '{doc_title}' ({total_pages} pages)...")
     
     all_pages_html = []
+    article_page_cards = []
     
     for page_idx in range(total_pages):
         page_num = page_idx + 1
@@ -194,7 +288,7 @@ def generate_continuous_scroll_book(pdf_path, output_html_path):
                         "lines": lines
                     })
                     
-        # 4. Build Page Elements
+        # 4. Build 1:1 Canvas Elements
         html_elements = []
         
         if svg_drawings:
@@ -249,6 +343,10 @@ def generate_continuous_scroll_book(pdf_path, output_html_path):
         """
         all_pages_html.append(page_card)
         
+        # 5. Build Web Article Card
+        article_card = build_page_article_html(page, extracted_images, page_num, total_pages, use_base64=True)
+        article_page_cards.append(article_card)
+        
         if page_num % 25 == 0 or page_num == total_pages:
             print(f"Processed {page_num}/{total_pages} pages...", flush=True)
             
@@ -259,7 +357,7 @@ def generate_continuous_scroll_book(pdf_path, output_html_path):
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
-  <title>{html.escape(doc_title)} - Complete HTML Book</title>
+  <title>{html.escape(doc_title)} - Complete HTML Web Book</title>
   <!-- Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -267,27 +365,39 @@ def generate_continuous_scroll_book(pdf_path, output_html_path):
   
   <style>
     :root {{
-      --bg-body: #1e293b;
+      --bg-body: #090d16;
+      --bg-surface: #111827;
+      --bg-card: #1f293d;
       --bg-page: #ffffff;
-      --bar-bg: rgba(15, 23, 42, 0.88);
+      --bar-bg: rgba(15, 23, 42, 0.92);
       --bar-border: rgba(255, 255, 255, 0.12);
       --text-main: #f8fafc;
+      --text-body: #cbd5e1;
+      --text-muted: #94a3b8;
       --accent: #38bdf8;
     }}
 
     [data-theme="light"] {{
-      --bg-body: #e2e8f0;
-      --bar-bg: rgba(255, 255, 255, 0.9);
+      --bg-body: #f1f5f9;
+      --bg-surface: #ffffff;
+      --bg-card: #e2e8f0;
+      --bar-bg: rgba(255, 255, 255, 0.95);
       --bar-border: rgba(0, 0, 0, 0.1);
       --text-main: #0f172a;
+      --text-body: #334155;
+      --text-muted: #64748b;
       --accent: #0284c7;
     }}
 
     [data-theme="sepia"] {{
-      --bg-body: #ebd9b8;
+      --bg-body: #f5eedc;
+      --bg-surface: #fbf5e8;
+      --bg-card: #ebd9b8;
       --bar-bg: rgba(245, 230, 203, 0.95);
       --bar-border: rgba(120, 90, 50, 0.2);
-      --text-main: #453216;
+      --text-main: #2e2010;
+      --text-body: #453216;
+      --text-muted: #7c6240;
       --accent: #b45309;
     }}
 
@@ -300,100 +410,248 @@ def generate_continuous_scroll_book(pdf_path, output_html_path):
       display: flex;
       flex-direction: column;
       align-items: center;
-      padding-bottom: 80px;
+      padding-bottom: 110px;
       overflow-x: hidden;
       transition: background-color 0.2s ease;
+      -webkit-font-smoothing: antialiased;
     }}
 
     /* Top Floating Reading Bar */
     .floating-header {{
       position: fixed;
-      top: 16px;
+      top: 14px;
       left: 50%;
       transform: translateX(-50%);
       background: var(--bar-bg);
-      backdrop-filter: blur(12px);
+      backdrop-filter: blur(14px);
       border: 1px solid var(--bar-border);
       border-radius: 40px;
-      padding: 0.45rem 1.25rem;
+      padding: 0.35rem 0.85rem;
       display: flex;
       align-items: center;
-      gap: 1rem;
+      gap: 0.6rem;
       z-index: 1000;
-      box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+      box-shadow: 0 10px 30px rgba(0,0,0,0.35);
       color: var(--text-main);
-      font-size: 0.85rem;
+      font-size: 0.82rem;
       font-weight: 600;
+      max-width: calc(100vw - 24px);
     }}
 
     .book-title-tag {{
       display: flex;
       align-items: center;
-      gap: 0.5rem;
+      gap: 0.4rem;
       font-weight: 700;
       white-space: nowrap;
-      max-width: 280px;
+      max-width: 180px;
       overflow: hidden;
       text-overflow: ellipsis;
+      cursor: pointer;
+    }}
+
+    .segmented-control {{
+      display: inline-flex;
+      background: rgba(0,0,0,0.25);
+      border: 1px solid var(--bar-border);
+      border-radius: 20px;
+      padding: 2px;
+      gap: 2px;
+    }}
+
+    .seg-btn {{
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      padding: 0.28rem 0.65rem;
+      border-radius: 16px;
+      font-size: 0.74rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      transition: all 0.15s ease;
+      white-space: nowrap;
+    }}
+
+    .seg-btn:hover {{
+      color: var(--text-main);
+    }}
+
+    .seg-btn.active {{
+      background: var(--accent);
+      color: #090d16;
+      font-weight: 700;
+      box-shadow: 0 2px 8px rgba(56,189,248,0.4);
     }}
 
     .page-indicator {{
       background: rgba(56,189,248,0.15);
       color: var(--accent);
-      padding: 0.2rem 0.6rem;
+      padding: 0.22rem 0.6rem;
       border-radius: 20px;
-      font-size: 0.78rem;
+      font-size: 0.76rem;
       font-weight: 700;
+      white-space: nowrap;
     }}
 
     .btn-icon {{
       background: rgba(255,255,255,0.08);
       border: 1px solid var(--bar-border);
       color: var(--text-main);
-      width: 32px;
-      height: 32px;
+      width: 30px;
+      height: 30px;
       border-radius: 50%;
       display: flex;
       align-items: center;
       justify-content: center;
       cursor: pointer;
-      font-size: 0.9rem;
+      font-size: 0.85rem;
       transition: all 0.15s;
+      flex-shrink: 0;
     }}
 
     .btn-icon:hover {{
       background: var(--accent);
-      color: #fff;
+      color: #090d16;
       transform: scale(1.05);
-    }}
-
-    .btn-icon.active {{
-      background: var(--accent) !important;
-      color: #0f172a !important;
-      font-weight: 700 !important;
     }}
 
     .btn-icon-pill {{
       width: auto !important;
-      padding: 0 0.75rem !important;
+      padding: 0 0.65rem !important;
       border-radius: 20px !important;
-      font-size: 0.8rem !important;
-      gap: 0.35rem !important;
+      font-size: 0.75rem !important;
+      gap: 0.3rem !important;
       font-weight: 600 !important;
       display: inline-flex !important;
     }}
 
-    /* Main Continuous Book Container */
+    /* Web Article Container */
+    .web-article-container {{
+      width: 100%;
+      max-width: 760px;
+      margin-top: 68px;
+      padding: 0.75rem 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.75rem;
+    }}
+
+    .article-page-card {{
+      background: var(--bg-surface);
+      border: 1px solid var(--bar-border);
+      border-radius: 16px;
+      padding: 2rem 1.75rem;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.22);
+    }}
+
+    [data-theme="light"] .article-page-card {{
+      background: #ffffff;
+      border-color: rgba(0,0,0,0.08);
+      box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+    }}
+
+    [data-theme="sepia"] .article-page-card {{
+      background: #fbf5e8;
+      border-color: rgba(120, 90, 50, 0.16);
+      box-shadow: 0 4px 20px rgba(120, 90, 50, 0.08);
+    }}
+
+    .article-page-badge {{
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--accent);
+      background: rgba(56,189,248,0.12);
+      padding: 0.22rem 0.65rem;
+      border-radius: 20px;
+      margin-bottom: 1.25rem;
+    }}
+
+    .article-body {{
+      color: var(--text-body);
+      line-height: 1.8;
+      font-size: 1.05rem;
+    }}
+
+    .article-title {{
+      font-size: 1.85rem;
+      font-weight: 800;
+      line-height: 1.25;
+      margin: 0.5rem 0 1.25rem;
+      color: var(--text-main);
+      letter-spacing: -0.02em;
+    }}
+
+    .article-heading-2 {{
+      font-size: 1.4rem;
+      font-weight: 700;
+      line-height: 1.35;
+      margin: 1.75rem 0 0.85rem;
+      color: var(--text-main);
+      border-bottom: 2px solid rgba(56,189,248,0.25);
+      padding-bottom: 0.4rem;
+    }}
+
+    .article-heading-3 {{
+      font-size: 1.15rem;
+      font-weight: 600;
+      line-height: 1.4;
+      margin: 1.25rem 0 0.5rem;
+      color: var(--accent);
+    }}
+
+    .article-para {{
+      font-size: 1.05rem;
+      line-height: 1.8;
+      margin-bottom: 1.15rem;
+      color: var(--text-body);
+      text-align: justify;
+    }}
+
+    .article-callout {{
+      background: rgba(56,189,248,0.07);
+      border-left: 4px solid var(--accent);
+      border-radius: 0 10px 10px 0;
+      padding: 1rem 1.25rem;
+      margin: 1.35rem 0;
+      font-size: 0.96rem;
+      line-height: 1.65;
+      color: var(--text-main);
+      font-style: italic;
+    }}
+
+    .article-media-wrap {{
+      margin: 1.5rem auto;
+      text-align: center;
+      max-width: 100%;
+    }}
+
+    .article-img {{
+      max-width: 100%;
+      height: auto;
+      border-radius: 10px;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.2);
+      object-fit: contain;
+      background: #fff;
+    }}
+
+    /* 1:1 Canvas Container */
     .book-pages-container {{
       display: flex;
       flex-direction: column;
       align-items: center;
       gap: 28px;
-      margin-top: 75px;
+      margin-top: 68px;
       width: 100%;
     }}
 
-    /* Individual Page Sheet Card */
     .book-page-sheet {{
       position: relative;
       background: var(--bg-page);
@@ -434,108 +692,369 @@ def generate_continuous_scroll_book(pdf_path, output_html_path):
       color: #000;
     }}
 
-    /* Mobile Responsive Optimizations */
+    /* Bottom Floating Nav Bar */
+    .bottom-nav-bar {{
+      position: fixed;
+      bottom: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--bar-bg);
+      backdrop-filter: blur(14px);
+      border: 1px solid var(--bar-border);
+      border-radius: 40px;
+      padding: 0.35rem 0.65rem;
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      z-index: 1000;
+      box-shadow: 0 12px 32px rgba(0,0,0,0.4);
+    }}
+
+    .bottom-nav-btn {{
+      background: rgba(255,255,255,0.08);
+      border: 1px solid var(--bar-border);
+      color: var(--text-main);
+      padding: 0.45rem 1rem;
+      border-radius: 20px;
+      font-size: 0.82rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      transition: all 0.15s;
+      white-space: nowrap;
+    }}
+
+    .bottom-nav-btn:hover:not(:disabled) {{
+      background: var(--accent);
+      color: #090d16;
+      transform: translateY(-1px);
+    }}
+
+    .bottom-nav-btn:disabled {{
+      opacity: 0.35;
+      cursor: not-allowed;
+    }}
+
+    /* Mobile Responsive */
     @media screen and (max-width: 768px) {{
-      body {{
-        padding-bottom: 90px !important;
-      }}
       .floating-header {{
         top: 8px !important;
-        width: calc(100% - 16px) !important;
-        max-width: 100vw !important;
-        padding: 0.35rem 0.5rem !important;
+        width: calc(100% - 12px) !important;
+        padding: 0.3rem 0.45rem !important;
         gap: 0.35rem !important;
         border-radius: 30px !important;
-        font-size: 0.75rem !important;
+        font-size: 0.72rem !important;
         overflow-x: auto !important;
         white-space: nowrap !important;
         scrollbar-width: none !important;
-        justify-content: flex-start !important;
       }}
       .floating-header::-webkit-scrollbar {{ display: none; }}
       .book-title-tag {{
-        max-width: 80px !important;
+        max-width: 85px !important;
         font-size: 0.72rem !important;
+      }}
+      .seg-btn {{
+        padding: 0.22rem 0.45rem !important;
+        font-size: 0.68rem !important;
       }}
       .page-indicator {{
-        font-size: 0.7rem !important;
-        padding: 0.15rem 0.45rem !important;
+        font-size: 0.68rem !important;
+        padding: 0.15rem 0.4rem !important;
       }}
       #page-jump-input {{
-        width: 36px !important;
-        height: 24px !important;
-        font-size: 0.72rem !important;
+        width: 34px !important;
+        height: 22px !important;
+        font-size: 0.7rem !important;
       }}
       .btn-icon {{
-        width: 28px !important;
-        height: 28px !important;
-        min-width: 28px !important;
-        font-size: 0.75rem !important;
-        flex-shrink: 0 !important;
+        width: 26px !important;
+        height: 26px !important;
+        min-width: 26px !important;
+        font-size: 0.72rem !important;
       }}
-      .btn-icon-pill span {{
-        display: none !important;
+      .web-article-container {{
+        margin-top: 50px !important;
+        padding: 0.5rem 0.5rem 1.5rem !important;
+        gap: 1rem !important;
+      }}
+      .article-page-card {{
+        padding: 1.25rem 1rem !important;
+        border-radius: 12px !important;
+      }}
+      .article-title {{ font-size: 1.45rem !important; }}
+      .article-heading-2 {{ font-size: 1.2rem !important; }}
+      .article-heading-3 {{ font-size: 1.05rem !important; }}
+      .article-para {{
+        font-size: 0.98rem !important;
+        line-height: 1.7 !important;
+        text-align: left !important;
       }}
       .book-pages-container {{
-        margin-top: 55px !important;
+        margin-top: 50px !important;
         gap: 12px !important;
         padding: 0 4px !important;
-        width: 100% !important;
       }}
-      .book-page-sheet {{
-        max-width: none !important;
-        box-shadow: 0 4px 16px rgba(0,0,0,0.2) !important;
+      .bottom-nav-bar {{
+        bottom: 10px !important;
+        padding: 0.28rem 0.45rem !important;
+        gap: 0.4rem !important;
+      }}
+      .bottom-nav-btn {{
+        padding: 0.35rem 0.75rem !important;
+        font-size: 0.76rem !important;
       }}
     }}
 
-    /* Print styling */
     @media print {{
       body {{ background: #fff !important; padding: 0 !important; }}
-      .floating-header {{ display: none !important; }}
-      .book-pages-container {{ margin-top: 0 !important; gap: 0 !important; }}
-      .book-page-sheet {{ box-shadow: none !important; margin: 0 !important; page-break-after: always; }}
+      .floating-header, .bottom-nav-bar {{ display: none !important; }}
+      .article-page-card, .book-page-sheet {{ box-shadow: none !important; margin: 0 !important; page-break-after: always; }}
     }}
   </style>
 </head>
 <body data-theme="dark">
 
-  <!-- Floating Navigation Bar -->
-  <div class="floating-header">
-    <div class="book-title-tag">
+  <!-- Floating Reading Bar -->
+  <header class="floating-header">
+    <div class="book-title-tag" id="book-title" title="{html.escape(doc_title)}">
       📖 <span>{html.escape(doc_title)}</span>
     </div>
     
+    <!-- View Switcher -->
+    <div class="segmented-control" id="view-mode-control">
+      <button class="seg-btn active" id="btn-mode-article" title="Switch to Mobile Web Article (Large readable text)">
+        📱 Article
+      </button>
+      <button class="seg-btn" id="btn-mode-canvas" title="Switch to 1:1 Print Replica Layout">
+        🎯 1:1 Canvas
+      </button>
+    </div>
+
+    <!-- Scroll Mode Switcher -->
+    <div class="segmented-control" id="scroll-mode-control">
+      <button class="seg-btn active" id="btn-scroll-page" title="Page-by-Page Reading (No Endless Scroll!)">
+        📄 Page
+      </button>
+      <button class="seg-btn" id="btn-scroll-stream" title="Continuous Vertical Scroll">
+        📜 Stream
+      </button>
+    </div>
+
     <div class="page-indicator" id="current-page-badge">
-      Page <span id="cur-p">1</span> / {total_pages}
+      <span id="cur-p">1</span> / {total_pages}
     </div>
 
     <!-- Quick Page Jump -->
     <input type="number" id="page-jump-input" min="1" max="{total_pages}" value="1" 
-      style="width: 44px; height: 26px; border-radius: 6px; border: 1px solid var(--bar-border); background: rgba(0,0,0,0.2); color: var(--text-main); text-align: center; font-weight: 700; font-size: 0.8rem; outline: none;" title="Enter page number to jump">
+      style="width: 40px; height: 24px; border-radius: 6px; border: 1px solid var(--bar-border); background: rgba(0,0,0,0.25); color: var(--text-main); text-align: center; font-weight: 700; font-size: 0.75rem; outline: none;" title="Jump to page">
 
-    <!-- Zoom Controls for Mobile & Desktop -->
-    <button class="btn-icon" id="btn-zoom-out" title="Zoom Out (-)" style="font-weight: 800;">−</button>
-    <button class="btn-icon btn-icon-pill" id="btn-zoom-reset" title="Fit to Screen Width (Reset Zoom)">
-      <span id="zoom-text">Fit</span>
-    </button>
-    <button class="btn-icon" id="btn-zoom-in" title="Zoom In (+)" style="font-weight: 800;">+</button>
+    <!-- Canvas Zoom Controls -->
+    <div id="zoom-controls-wrap" style="display: none; align-items: center; gap: 0.35rem;">
+      <button class="btn-icon" id="btn-zoom-out" title="Zoom Out (-)" style="font-weight: 800;">−</button>
+      <button class="btn-icon btn-icon-pill" id="btn-zoom-reset" title="Fit to Width">
+        <span id="zoom-text">Fit</span>
+      </button>
+      <button class="btn-icon" id="btn-zoom-in" title="Zoom In (+)" style="font-weight: 800;">+</button>
+    </div>
 
-    <!-- Fullscreen Toggle -->
-    <button class="btn-icon" id="btn-fullscreen" title="Fullscreen Mode (F11)">⛶</button>
-
-    <!-- Theme Toggle -->
+    <button class="btn-icon" id="btn-fullscreen" title="Toggle Fullscreen Mode">⛶</button>
     <button class="btn-icon" id="theme-btn" title="Toggle Theme (Dark / Light / Sepia)">🌓</button>
-    <!-- Scroll to Top -->
     <button class="btn-icon" id="top-btn" title="Scroll to Top">⬆</button>
-  </div>
+  </header>
 
-  <!-- Continuous Vertical Pages Stream -->
-  <main class="book-pages-container" id="pages-stream">
+  <!-- 1. Mobile Web Article View -->
+  <main class="web-article-container" id="article-stream">
+    {''.join(article_page_cards)}
+  </main>
+
+  <!-- 2. Continuous Vertical Canvas Stream (1:1 Exact Print Replica) -->
+  <main class="book-pages-container" id="pages-stream" style="display: none;">
     {''.join(all_pages_html)}
   </main>
 
+  <!-- Bottom Floating Navigation Bar -->
+  <nav class="bottom-nav-bar" id="bottom-nav-bar">
+    <button class="bottom-nav-btn" id="b-btn-prev" title="Previous Page">
+      ‹ Prev Page
+    </button>
+    <div class="page-indicator" style="background: transparent; border: 1px solid var(--bar-border);">
+      Page <span id="b-cur-p">1</span> / {total_pages}
+    </div>
+    <button class="bottom-nav-btn" id="b-btn-next" title="Next Page">
+      Next Page ›
+    </button>
+  </nav>
+
   <script>
-    // Auto-fit text line scale
+    const totalPages = {total_pages};
+    let currentPage = 1;
+    let currentViewMode = 'article';
+    let currentScrollMode = 'page';
+    let currentZoomMultiplier = 1.0;
+
+    const articleStream = document.getElementById('article-stream');
+    const pagesStream = document.getElementById('pages-stream');
+    const curPBadge = document.getElementById('cur-p');
+    const bCurPBadge = document.getElementById('b-cur-p');
+    const pageJumpInput = document.getElementById('page-jump-input');
+    const bottomNavBar = document.getElementById('bottom-nav-bar');
+    const bBtnPrev = document.getElementById('b-btn-prev');
+    const bBtnNext = document.getElementById('b-btn-next');
+    const zoomControlsWrap = document.getElementById('zoom-controls-wrap');
+
+    const btnModeArticle = document.getElementById('btn-mode-article');
+    const btnModeCanvas = document.getElementById('btn-mode-canvas');
+    const btnScrollPage = document.getElementById('btn-scroll-page');
+    const btnScrollStream = document.getElementById('btn-scroll-stream');
+
+    function updatePageVisibility() {{
+      curPBadge.textContent = currentPage;
+      bCurPBadge.textContent = currentPage;
+      pageJumpInput.value = currentPage;
+
+      bBtnPrev.disabled = (currentPage <= 1);
+      bBtnNext.disabled = (currentPage >= totalPages);
+
+      if (currentScrollMode === 'page') {{
+        document.querySelectorAll('.article-page-card').forEach(el => {{
+          const p = parseInt(el.getAttribute('data-page'), 10);
+          el.style.display = (p === currentPage) ? 'block' : 'none';
+        }});
+        document.querySelectorAll('.book-page-sheet-container').forEach(el => {{
+          const sheet = el.querySelector('.book-page-sheet');
+          const p = sheet ? parseInt(sheet.getAttribute('data-page'), 10) : 0;
+          el.style.display = (p === currentPage) ? 'flex' : 'none';
+        }});
+        bottomNavBar.style.display = 'flex';
+        window.scrollTo({{ top: 0, behavior: 'smooth' }});
+      }} else {{
+        document.querySelectorAll('.article-page-card').forEach(el => el.style.display = 'block');
+        document.querySelectorAll('.book-page-sheet-container').forEach(el => el.style.display = 'flex');
+        bottomNavBar.style.display = 'flex';
+      }}
+
+      if (currentViewMode === 'canvas') {{
+        setTimeout(applyCanvasScaling, 50);
+      }}
+    }}
+
+    function setViewMode(mode) {{
+      currentViewMode = mode;
+      if (mode === 'article') {{
+        articleStream.style.display = 'flex';
+        pagesStream.style.display = 'none';
+        zoomControlsWrap.style.display = 'none';
+        btnModeArticle.classList.add('active');
+        btnModeCanvas.classList.remove('active');
+      }} else {{
+        articleStream.style.display = 'none';
+        pagesStream.style.display = 'flex';
+        zoomControlsWrap.style.display = 'inline-flex';
+        btnModeCanvas.classList.add('active');
+        btnModeArticle.classList.remove('active');
+        applyCanvasScaling();
+      }}
+      updatePageVisibility();
+    }}
+
+    function setScrollMode(mode) {{
+      currentScrollMode = mode;
+      if (mode === 'page') {{
+        btnScrollPage.classList.add('active');
+        btnScrollStream.classList.remove('active');
+      }} else {{
+        btnScrollStream.classList.add('active');
+        btnScrollPage.classList.remove('active');
+      }}
+      updatePageVisibility();
+    }}
+
+    function goToPage(pNum) {{
+      if (pNum < 1) pNum = 1;
+      if (pNum > totalPages) pNum = totalPages;
+      currentPage = pNum;
+
+      if (currentScrollMode === 'page') {{
+        updatePageVisibility();
+      }} else {{
+        const targetId = (currentViewMode === 'article') ? `article-page-${{pNum}}` : `page-${{pNum}}`;
+        const targetEl = document.getElementById(targetId);
+        if (targetEl) {{
+          targetEl.scrollIntoView({{ behavior: 'smooth', block: 'start' }});
+        }}
+        curPBadge.textContent = currentPage;
+        bCurPBadge.textContent = currentPage;
+        pageJumpInput.value = currentPage;
+      }}
+    }}
+
+    bBtnPrev.addEventListener('click', () => goToPage(currentPage - 1));
+    bBtnNext.addEventListener('click', () => goToPage(currentPage + 1));
+    btnModeArticle.addEventListener('click', () => setViewMode('article'));
+    btnModeCanvas.addEventListener('click', () => setViewMode('canvas'));
+    btnScrollPage.addEventListener('click', () => setScrollMode('page'));
+    btnScrollStream.addEventListener('click', () => setScrollMode('stream'));
+
+    pageJumpInput.addEventListener('change', (e) => {{
+      const val = parseInt(e.target.value, 10);
+      if (!isNaN(val)) goToPage(val);
+    }});
+
+    window.addEventListener('scroll', () => {{
+      if (currentScrollMode !== 'stream') return;
+      const scrollPos = window.scrollY + 200;
+      let cur = 1;
+
+      if (currentViewMode === 'article') {{
+        document.querySelectorAll('.article-page-card').forEach(card => {{
+          if (card.offsetTop <= scrollPos) {{
+            cur = parseInt(card.getAttribute('data-page'), 10);
+          }}
+        }});
+      }} else {{
+        document.querySelectorAll('.book-page-sheet').forEach(sheet => {{
+          if (sheet.offsetTop <= scrollPos) {{
+            cur = parseInt(sheet.getAttribute('data-page'), 10);
+          }}
+        }});
+      }}
+
+      currentPage = cur;
+      curPBadge.textContent = cur;
+      bCurPBadge.textContent = cur;
+      pageJumpInput.value = cur;
+      bBtnPrev.disabled = (currentPage <= 1);
+      bBtnNext.disabled = (currentPage >= totalPages);
+    }}, {{ passive: true }});
+
+    // Touch Swipe Gesture
+    let touchStartX = 0;
+    let touchStartY = 0;
+    window.addEventListener('touchstart', (e) => {{
+      touchStartX = e.changedTouches[0].screenX;
+      touchStartY = e.changedTouches[0].screenY;
+    }}, {{ passive: true }});
+
+    window.addEventListener('touchend', (e) => {{
+      const touchEndX = e.changedTouches[0].screenX;
+      const touchEndY = e.changedTouches[0].screenY;
+      const diffX = touchEndX - touchStartX;
+      const diffY = touchEndY - touchStartY;
+
+      if (Math.abs(diffX) > 60 && Math.abs(diffY) < 50) {{
+        if (diffX < 0) goToPage(currentPage + 1);
+        else goToPage(currentPage - 1);
+      }}
+    }}, {{ passive: true }});
+
+    window.addEventListener('keydown', (e) => {{
+      if (e.target.tagName === 'INPUT') return;
+      if (e.key === 'ArrowRight' || e.key === 'PageDown') goToPage(currentPage + 1);
+      if (e.key === 'ArrowLeft' || e.key === 'PageUp') goToPage(currentPage - 1);
+    }});
+
     function adjustLineScales() {{
       document.querySelectorAll('.text-line').forEach(el => {{
         const targetWidth = parseFloat(el.getAttribute('data-target-width'));
@@ -547,9 +1066,7 @@ def generate_continuous_scroll_book(pdf_path, output_html_path):
       }});
     }}
 
-    let currentZoomMultiplier = 1.0;
-
-    function applyScaling() {{
+    function applyCanvasScaling() {{
       const sheets = document.querySelectorAll('.book-page-sheet');
       const winWidth = window.innerWidth;
       const isMobile = winWidth < 768;
@@ -563,7 +1080,6 @@ def generate_continuous_scroll_book(pdf_path, output_html_path):
         const origHeightPx = origHeightPt * (96 / 72);
         const container = sheet.closest('.book-page-sheet-container');
         
-        // Auto-scale to fit phone or desktop screen width
         const baseScale = availWidth / origWidthPx;
         const scale = baseScale * currentZoomMultiplier;
         
@@ -577,7 +1093,7 @@ def generate_continuous_scroll_book(pdf_path, output_html_path):
         if (container) {{
           container.style.height = `${{origHeightPx * scale + (isMobile ? 12 : 24)}}px`;
           container.style.width = '100%';
-          container.style.display = 'flex';
+          container.style.display = (currentScrollMode === 'page' && parseInt(sheet.getAttribute('data-page'), 10) !== currentPage) ? 'none' : 'flex';
           container.style.justifyContent = 'center';
           container.style.overflowX = currentZoomMultiplier > 1.05 ? 'auto' : 'hidden';
         }}
@@ -591,87 +1107,49 @@ def generate_continuous_scroll_book(pdf_path, output_html_path):
       adjustLineScales();
     }}
 
-    // Scroll Tracking to update current page indicator
-    const pages = document.querySelectorAll('.book-page-sheet');
-    const curPBadge = document.getElementById('cur-p');
-    const pageJumpInput = document.getElementById('page-jump-input');
+    document.getElementById('btn-zoom-in')?.addEventListener('click', () => {{
+      currentZoomMultiplier = Math.min(2.5, +(currentZoomMultiplier + 0.2).toFixed(1));
+      applyCanvasScaling();
+    }});
 
-    window.addEventListener('scroll', () => {{
-      let current = 1;
-      const scrollPos = window.scrollY + 250;
-      pages.forEach((p, idx) => {{
-        if (p.offsetTop <= scrollPos) {{
-          current = idx + 1;
-        }}
-      }});
-      curPBadge.textContent = current;
-      pageJumpInput.value = current;
-    }}, {{ passive: true }});
+    document.getElementById('btn-zoom-out')?.addEventListener('click', () => {{
+      currentZoomMultiplier = Math.max(0.6, +(currentZoomMultiplier - 0.2).toFixed(1));
+      applyCanvasScaling();
+    }});
 
-    // Jump to page
-    pageJumpInput.addEventListener('change', (e) => {{
-      const pNum = parseInt(e.target.value, 10);
-      if (pNum >= 1 && pNum <= {total_pages}) {{
-        const targetEl = document.getElementById(`page-${{pNum}}`);
-        if (targetEl) {{
-          targetEl.scrollIntoView({{ behavior: 'smooth', block: 'start' }});
-        }}
+    document.getElementById('btn-zoom-reset')?.addEventListener('click', () => {{
+      currentZoomMultiplier = 1.0;
+      applyCanvasScaling();
+    }});
+
+    document.getElementById('btn-fullscreen')?.addEventListener('click', () => {{
+      if (!document.fullscreenElement) {{
+        document.documentElement.requestFullscreen().catch(() => {{}});
+      }} else {{
+        document.exitFullscreen().catch(() => {{}});
       }}
     }});
 
-    // Scroll to Top
-    document.getElementById('top-btn').addEventListener('click', () => {{
+    document.getElementById('top-btn')?.addEventListener('click', () => {{
       window.scrollTo({{ top: 0, behavior: 'smooth' }});
     }});
 
-    // Theme Toggle
     const themes = ['dark', 'light', 'sepia'];
     let curTheme = 'dark';
-    document.getElementById('theme-btn').addEventListener('click', () => {{
+    document.getElementById('theme-btn')?.addEventListener('click', () => {{
       curTheme = themes[(themes.indexOf(curTheme) + 1) % themes.length];
       document.body.setAttribute('data-theme', curTheme);
     }});
 
-    const btnZoomIn = document.getElementById('btn-zoom-in');
-    if (btnZoomIn) {{
-      btnZoomIn.addEventListener('click', () => {{
-        currentZoomMultiplier = Math.min(2.5, +(currentZoomMultiplier + 0.2).toFixed(1));
-        applyScaling();
-      }});
-    }}
+    window.addEventListener('resize', () => {{
+      if (currentViewMode === 'canvas') applyCanvasScaling();
+    }});
 
-    const btnZoomOut = document.getElementById('btn-zoom-out');
-    if (btnZoomOut) {{
-      btnZoomOut.addEventListener('click', () => {{
-        currentZoomMultiplier = Math.max(0.6, +(currentZoomMultiplier - 0.2).toFixed(1));
-        applyScaling();
-      }});
-    }}
-
-    const btnZoomReset = document.getElementById('btn-zoom-reset');
-    if (btnZoomReset) {{
-      btnZoomReset.addEventListener('click', () => {{
-        currentZoomMultiplier = 1.0;
-        applyScaling();
-      }});
-    }}
-
-    const btnFullscreen = document.getElementById('btn-fullscreen');
-    if (btnFullscreen) {{
-      btnFullscreen.addEventListener('click', () => {{
-        if (!document.fullscreenElement) {{
-          document.documentElement.requestFullscreen().catch(() => {{}});
-        }} else {{
-          document.exitFullscreen().catch(() => {{}});
-        }}
-      }});
-    }}
-
-    window.addEventListener('resize', applyScaling);
-    // Run on load
-    window.addEventListener('DOMContentLoaded', () => {{
-      adjustLineScales();
-      setTimeout(applyScaling, 100);
+    document.addEventListener('DOMContentLoaded', () => {{
+      const isMobile = window.innerWidth < 768;
+      setViewMode('article');
+      setScrollMode('page');
+      updatePageVisibility();
     }});
   </script>
 </body>
@@ -680,10 +1158,11 @@ def generate_continuous_scroll_book(pdf_path, output_html_path):
     with open(output_html_path, "w", encoding="utf-8") as f_out:
         f_out.write(full_html_document)
         
-    print(f"SUCCESS! Continuous Scroll HTML Book saved at: {output_html_path}", flush=True)
+    print(f"SUCCESS! Continuous Scroll & Web Article HTML Book saved at: {output_html_path}", flush=True)
     return output_html_path
 
 if __name__ == '__main__':
     pdf_path = r'C:\Users\yniti\NCERT_Class11\English\Class 11 English - Hornbill.pdf'
     out_file = r'C:\Users\yniti\Hornbill_HTML_Viewer\Hornbill_Complete_Book.html'
-    generate_continuous_scroll_book(pdf_path, out_file)
+    if os.path.exists(pdf_path):
+        generate_continuous_scroll_book(pdf_path, out_file)

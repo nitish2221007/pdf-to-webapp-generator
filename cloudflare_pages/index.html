@@ -622,6 +622,106 @@
       .pdf-page-html-content {
         max-width: none !important;
       }
+      /* Web Article Mode Inside Studio */
+      .web-article-wrapper {
+        width: 100% !important;
+        max-width: 740px !important;
+        background: var(--bg-surface) !important;
+        border-radius: 12px !important;
+        border: 1px solid var(--border-color) !important;
+        padding: 1.75rem 1.25rem !important;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.3) !important;
+        transform: none !important;
+        height: auto !important;
+        margin: 0 auto !important;
+        overflow: visible !important;
+      }
+      .article-page-card {
+        background: transparent !important;
+        border: none !important;
+        padding: 0 !important;
+        box-shadow: none !important;
+      }
+      .article-page-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        font-size: 0.72rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--accent-cyan);
+        background: rgba(56,189,248,0.12);
+        padding: 0.22rem 0.65rem;
+        border-radius: 20px;
+        margin-bottom: 1.25rem;
+      }
+      .article-body {
+        color: #cbd5e1;
+        line-height: 1.8;
+        font-size: 1.05rem;
+      }
+      .article-title {
+        font-size: 1.85rem;
+        font-weight: 800;
+        line-height: 1.25;
+        margin: 0.5rem 0 1.25rem;
+        color: #fff;
+        letter-spacing: -0.02em;
+      }
+      .article-heading-2 {
+        font-size: 1.35rem;
+        font-weight: 700;
+        line-height: 1.35;
+        margin: 1.75rem 0 0.85rem;
+        color: #fff;
+        border-bottom: 2px solid rgba(56,189,248,0.25);
+        padding-bottom: 0.4rem;
+      }
+      .article-heading-3 {
+        font-size: 1.15rem;
+        font-weight: 600;
+        line-height: 1.4;
+        margin: 1.25rem 0 0.5rem;
+        color: var(--accent-cyan);
+      }
+      .article-para {
+        font-size: 1.05rem;
+        line-height: 1.8;
+        margin-bottom: 1.15rem;
+        color: #cbd5e1;
+        text-align: justify;
+      }
+      .article-callout {
+        background: rgba(56,189,248,0.07);
+        border-left: 4px solid var(--accent-cyan);
+        border-radius: 0 10px 10px 0;
+        padding: 1rem 1.25rem;
+        margin: 1.35rem 0;
+        font-size: 0.96rem;
+        line-height: 1.65;
+        color: #f8fafc;
+        font-style: italic;
+      }
+      .article-media-wrap {
+        margin: 1.5rem auto;
+        text-align: center;
+        max-width: 100%;
+      }
+      .article-img {
+        max-width: 100%;
+        height: auto;
+        border-radius: 10px;
+        box-shadow: 0 6px 20px rgba(0,0,0,0.2);
+        object-fit: contain;
+        background: #fff;
+      }
+      @media screen and (max-width: 768px) {
+        .article-title { font-size: 1.45rem; }
+        .article-heading-2 { font-size: 1.2rem; }
+        .article-para { font-size: 0.98rem; text-align: left; }
+        .web-article-wrapper { padding: 1.25rem 0.9rem !important; }
+      }
     }
     .server-badge {
       background: var(--bg-card);
@@ -803,15 +903,23 @@
       <section class="studio-pane pane-right" id="s-pane-html">
         <div class="pane-titlebar">
           <span><i data-lucide="code-xml"></i> Converted HTML & CSS Layout</span>
-          <div style="display: flex; align-items: center; gap: 0.6rem;">
-            <button class="scale-btn active" id="s-btn-fit-width" title="Toggle Fit to Screen Width">
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <!-- Article Mode vs 1:1 Canvas Replica -->
+            <div class="view-mode-toggle" id="s-html-view-toggle">
+              <button class="mode-btn active" id="s-btn-view-article" title="📱 Web Article Mode (Large 17px readable text, mobile responsive)">
+                <i data-lucide="smartphone"></i> <span>📱 Article</span>
+              </button>
+              <button class="mode-btn" id="s-btn-view-canvas" title="🎯 1:1 Exact Print Replica Layout">
+                <i data-lucide="scan"></i> <span>🎯 1:1 Replica</span>
+              </button>
+            </div>
+            <button class="scale-btn" id="s-btn-fit-width" title="Toggle Fit to Screen Width" style="display: none;">
               <i data-lucide="maximize-2"></i> Fit Width
             </button>
-            <span style="font-size: 0.72rem; color: var(--accent-pink); font-weight: 700;">1:1 EXACT REPLICA</span>
           </div>
         </div>
         <div class="pane-scroll-area">
-          <div class="page-scale-wrapper" id="s-html-wrapper">
+          <div class="web-article-wrapper" id="s-html-wrapper">
             <!-- Injected dynamically -->
           </div>
         </div>
@@ -980,9 +1088,10 @@
 
     let currentScaleMode = 'fit'; // 'fit' or 'actual'
     let currentViewMode = 'split'; // 'split' or 'full'
+    let currentHtmlView = (window.innerWidth < 768) ? 'article' : 'article';
 
     function updateStudioScaling() {
-      if (!currentSession) return;
+      if (!currentSession || currentHtmlView === 'article') return;
       const pageInfo = currentSession.data.pages[currentPage - 1];
       if (!pageInfo) return;
 
@@ -1088,6 +1197,24 @@
       });
     }
 
+    function setHtmlReaderMode(mode) {
+      currentHtmlView = mode;
+      const btnArt = document.getElementById('s-btn-view-article');
+      const btnCan = document.getElementById('s-btn-view-canvas');
+      const btnFit = document.getElementById('s-btn-fit-width');
+
+      if (btnArt) btnArt.classList.toggle('active', mode === 'article');
+      if (btnCan) btnCan.classList.toggle('active', mode === 'canvas');
+      if (btnFit) btnFit.style.display = (mode === 'canvas') ? 'inline-flex' : 'none';
+
+      renderStudioPage(currentPage);
+    }
+
+    const sBtnViewArticle = document.getElementById('s-btn-view-article');
+    const sBtnViewCanvas = document.getElementById('s-btn-view-canvas');
+    if (sBtnViewArticle) sBtnViewArticle.addEventListener('click', () => setHtmlReaderMode('article'));
+    if (sBtnViewCanvas) sBtnViewCanvas.addEventListener('click', () => setHtmlReaderMode('canvas'));
+
     function renderStudioPage(pageNum) {
       if (!currentSession) return;
       if (pageNum < 1) pageNum = 1;
@@ -1101,12 +1228,23 @@
       sPdfImg.src = `${API_BASE}/outputs/${currentSession.sessionId}/${pageInfo.pdfImage}`;
 
       // Update HTML Side
-      let snippet = pageInfo.htmlSnippet;
-      snippet = snippet.replaceAll('src="assets/images/', `src="${API_BASE}/outputs/${currentSession.sessionId}/assets/images/`);
-      sHtmlWrapper.innerHTML = snippet;
-
-      // Fit text lines & apply scaling
-      updateStudioScaling();
+      if (currentHtmlView === 'article' && pageInfo.articleSnippet) {
+        let snippet = pageInfo.articleSnippet;
+        snippet = snippet.replaceAll('src="assets/images/', `src="${API_BASE}/outputs/${currentSession.sessionId}/assets/images/`);
+        sHtmlWrapper.innerHTML = snippet;
+        sHtmlWrapper.className = 'web-article-wrapper';
+        sHtmlWrapper.style.transform = 'none';
+        sHtmlWrapper.style.width = '100%';
+        sHtmlWrapper.style.maxWidth = '740px';
+        sHtmlWrapper.style.height = 'auto';
+        sHtmlWrapper.style.overflow = 'visible';
+      } else {
+        let snippet = pageInfo.htmlSnippet;
+        snippet = snippet.replaceAll('src="assets/images/', `src="${API_BASE}/outputs/${currentSession.sessionId}/assets/images/`);
+        sHtmlWrapper.innerHTML = snippet;
+        sHtmlWrapper.className = 'page-scale-wrapper';
+        updateStudioScaling();
+      }
     }
 
     sBtnPrev.addEventListener('click', () => renderStudioPage(currentPage - 1));
@@ -1200,6 +1338,26 @@
         if (e.key === 'Escape') codeModal.classList.remove('open');
       }
     });
+
+    // Touch Swipe Gesture for Mobile
+    let sTouchStartX = 0;
+    let sTouchStartY = 0;
+    window.addEventListener('touchstart', (e) => {
+      sTouchStartX = e.changedTouches[0].screenX;
+      sTouchStartY = e.changedTouches[0].screenY;
+    }, { passive: true });
+
+    window.addEventListener('touchend', (e) => {
+      if (!viewStudio.classList.contains('active')) return;
+      const sTouchEndX = e.changedTouches[0].screenX;
+      const sTouchEndY = e.changedTouches[0].screenY;
+      const diffX = sTouchEndX - sTouchStartX;
+      const diffY = sTouchEndY - sTouchStartY;
+      if (Math.abs(diffX) > 60 && Math.abs(diffY) < 50) {
+        if (diffX < 0) renderStudioPage(currentPage + 1);
+        else renderStudioPage(currentPage - 1);
+      }
+    }, { passive: true });
 
     // Initialize Lucide icons
     document.addEventListener('DOMContentLoaded', () => {
