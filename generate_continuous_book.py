@@ -258,7 +258,7 @@ def generate_continuous_scroll_book(pdf_path, output_html_path):
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
   <title>{html.escape(doc_title)} - Complete HTML Book</title>
   <!-- Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -434,19 +434,57 @@ def generate_continuous_scroll_book(pdf_path, output_html_path):
       color: #000;
     }}
 
-    /* Mobile Responsive Auto-Fit Scaling */
+    /* Mobile Responsive Optimizations */
     @media screen and (max-width: 768px) {{
-      .floating-header {{
-        width: 95%;
-        padding: 0.35rem 0.75rem;
-        gap: 0.5rem;
-        font-size: 0.75rem;
+      body {{
+        padding-bottom: 90px !important;
       }}
-      .book-title-tag {{ max-width: 120px; }}
-      .book-pages-container {{ margin-top: 65px; gap: 16px; padding: 0 4px; }}
+      .floating-header {{
+        top: 8px !important;
+        width: calc(100% - 16px) !important;
+        max-width: 100vw !important;
+        padding: 0.35rem 0.5rem !important;
+        gap: 0.35rem !important;
+        border-radius: 30px !important;
+        font-size: 0.75rem !important;
+        overflow-x: auto !important;
+        white-space: nowrap !important;
+        scrollbar-width: none !important;
+        justify-content: flex-start !important;
+      }}
+      .floating-header::-webkit-scrollbar {{ display: none; }}
+      .book-title-tag {{
+        max-width: 80px !important;
+        font-size: 0.72rem !important;
+      }}
+      .page-indicator {{
+        font-size: 0.7rem !important;
+        padding: 0.15rem 0.45rem !important;
+      }}
+      #page-jump-input {{
+        width: 36px !important;
+        height: 24px !important;
+        font-size: 0.72rem !important;
+      }}
+      .btn-icon {{
+        width: 28px !important;
+        height: 28px !important;
+        min-width: 28px !important;
+        font-size: 0.75rem !important;
+        flex-shrink: 0 !important;
+      }}
+      .btn-icon-pill span {{
+        display: none !important;
+      }}
+      .book-pages-container {{
+        margin-top: 55px !important;
+        gap: 12px !important;
+        padding: 0 4px !important;
+        width: 100% !important;
+      }}
       .book-page-sheet {{
-        max-width: 100% !important;
-        transform-origin: top center;
+        max-width: none !important;
+        box-shadow: 0 4px 16px rgba(0,0,0,0.2) !important;
       }}
     }}
 
@@ -473,12 +511,14 @@ def generate_continuous_scroll_book(pdf_path, output_html_path):
 
     <!-- Quick Page Jump -->
     <input type="number" id="page-jump-input" min="1" max="{total_pages}" value="1" 
-      style="width: 46px; height: 26px; border-radius: 6px; border: 1px solid var(--bar-border); background: rgba(0,0,0,0.2); color: var(--text-main); text-align: center; font-weight: 700; font-size: 0.8rem; outline: none;" title="Enter page number to jump">
+      style="width: 44px; height: 26px; border-radius: 6px; border: 1px solid var(--bar-border); background: rgba(0,0,0,0.2); color: var(--text-main); text-align: center; font-weight: 700; font-size: 0.8rem; outline: none;" title="Enter page number to jump">
 
-    <!-- Mode: Full PC Width Toggle -->
-    <button class="btn-icon btn-icon-pill active" id="btn-full-width" title="Toggle Full PC Width (Real Website View)">
-      🖥️ <span>Full PC</span>
+    <!-- Zoom Controls for Mobile & Desktop -->
+    <button class="btn-icon" id="btn-zoom-out" title="Zoom Out (-)" style="font-weight: 800;">−</button>
+    <button class="btn-icon btn-icon-pill" id="btn-zoom-reset" title="Fit to Screen Width (Reset Zoom)">
+      <span id="zoom-text">Fit</span>
     </button>
+    <button class="btn-icon" id="btn-zoom-in" title="Zoom In (+)" style="font-weight: 800;">+</button>
 
     <!-- Fullscreen Toggle -->
     <button class="btn-icon" id="btn-fullscreen" title="Fullscreen Mode (F11)">⛶</button>
@@ -507,11 +547,14 @@ def generate_continuous_scroll_book(pdf_path, output_html_path):
       }});
     }}
 
-    let isFullWidthMode = true;
+    let currentZoomMultiplier = 1.0;
 
     function applyScaling() {{
       const sheets = document.querySelectorAll('.book-page-sheet');
       const winWidth = window.innerWidth;
+      const isMobile = winWidth < 768;
+      const padding = isMobile ? 12 : 40;
+      const availWidth = Math.max(160, winWidth - padding);
       
       sheets.forEach(sheet => {{
         const origWidthPt = parseFloat(sheet.getAttribute('data-width') || sheet.style.width);
@@ -520,26 +563,30 @@ def generate_continuous_scroll_book(pdf_path, output_html_path):
         const origHeightPx = origHeightPt * (96 / 72);
         const container = sheet.closest('.book-page-sheet-container');
         
-        if (isFullWidthMode) {{
-          const targetWidth = Math.min(winWidth - 48, 1440);
-          if (targetWidth > 320) {{
-            const scale = targetWidth / origWidthPx;
-            sheet.style.transform = `scale(${{scale}})`;
-            sheet.style.transformOrigin = 'top center';
-            sheet.style.boxShadow = '0 20px 50px rgba(0,0,0,0.35)';
-            if (container) {{
-              container.style.height = `${{origHeightPx * scale + 24}}px`;
-            }}
-          }}
-        }} else {{
-          sheet.style.transform = '';
-          sheet.style.transformOrigin = '';
-          sheet.style.boxShadow = '';
-          if (container) {{
-            container.style.height = '';
-          }}
+        // Auto-scale to fit phone or desktop screen width
+        const baseScale = availWidth / origWidthPx;
+        const scale = baseScale * currentZoomMultiplier;
+        
+        sheet.style.transform = `scale(${{scale}})`;
+        sheet.style.transformOrigin = 'top center';
+        sheet.style.maxWidth = 'none';
+        sheet.style.minWidth = `${{origWidthPt}}pt`;
+        sheet.style.width = `${{origWidthPt}}pt`;
+        sheet.style.boxShadow = isMobile ? '0 6px 18px rgba(0,0,0,0.3)' : '0 20px 50px rgba(0,0,0,0.35)';
+        
+        if (container) {{
+          container.style.height = `${{origHeightPx * scale + (isMobile ? 12 : 24)}}px`;
+          container.style.width = '100%';
+          container.style.display = 'flex';
+          container.style.justifyContent = 'center';
+          container.style.overflowX = currentZoomMultiplier > 1.05 ? 'auto' : 'hidden';
         }}
       }});
+      
+      const zoomText = document.getElementById('zoom-text');
+      if (zoomText) {{
+        zoomText.textContent = currentZoomMultiplier === 1.0 ? 'Fit' : `${{Math.round(currentZoomMultiplier * 100)}}%`;
+      }}
       
       adjustLineScales();
     }}
@@ -585,11 +632,26 @@ def generate_continuous_scroll_book(pdf_path, output_html_path):
       document.body.setAttribute('data-theme', curTheme);
     }});
 
-    const btnFullWidth = document.getElementById('btn-full-width');
-    if (btnFullWidth) {{
-      btnFullWidth.addEventListener('click', () => {{
-        isFullWidthMode = !isFullWidthMode;
-        btnFullWidth.classList.toggle('active', isFullWidthMode);
+    const btnZoomIn = document.getElementById('btn-zoom-in');
+    if (btnZoomIn) {{
+      btnZoomIn.addEventListener('click', () => {{
+        currentZoomMultiplier = Math.min(2.5, +(currentZoomMultiplier + 0.2).toFixed(1));
+        applyScaling();
+      }});
+    }}
+
+    const btnZoomOut = document.getElementById('btn-zoom-out');
+    if (btnZoomOut) {{
+      btnZoomOut.addEventListener('click', () => {{
+        currentZoomMultiplier = Math.max(0.6, +(currentZoomMultiplier - 0.2).toFixed(1));
+        applyScaling();
+      }});
+    }}
+
+    const btnZoomReset = document.getElementById('btn-zoom-reset');
+    if (btnZoomReset) {{
+      btnZoomReset.addEventListener('click', () => {{
+        currentZoomMultiplier = 1.0;
         applyScaling();
       }});
     }}
