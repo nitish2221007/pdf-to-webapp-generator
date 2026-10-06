@@ -8,4 +8,4 @@
 // in the top-right navbar to enter the URL directly in their browser.
 // ==============================================================================
 
-window.BACKEND_API_URL = "";
+window.BACKEND_API_URL = "https://cgcpdf.in";

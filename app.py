@@ -157,7 +157,7 @@ def open_browser(port):
         pass
 
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 7860))
+    port = int(os.environ.get('PORT', 8090))
     print("=" * 70)
     print("  [PDF to HTML/CSS Converter WebApp Studio Started]")
     print(f"  Access URL: http://0.0.0.0:{port}")
